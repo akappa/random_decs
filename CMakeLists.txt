@@ -1,32 +1,22 @@
 project(random_decs)
 cmake_minimum_required(VERSION 2.8)
+
+set(PROJECT_VENDOR "Andrea Farruggia")
+set(PROJECT_CONTACT "a.farruggia@di.unipi.it")
+set(PROJECT_DESCRIPTION "In-memory compressors/decompressors")
+
 set(CMAKE_SOURCE_DIR ${PROJECT_SOURCE_DIR}/src)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
 set(LIB_DIR ${PROJECT_SOURCE_DIR}/libs)
 set(LZ4_DIR ${PROJECT_SOURCE_DIR}/lz4)
 set(CMAKE_PREFIX_PATH "~/.local/")
 
-# Compiler flags
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-	message(STATUS "clang++ found")
-	add_definitions(-std=c++11)
+# C++11 support, Release by default
+include(Cpp11)
+include(NinjaColorFix)
+include(ReleaseDefault)
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
-#	set_property(
-#	   DIRECTORY ${CMAKE_SOURCE_DIR}
-#	   PROPERTY COMPILE_DEFINITIONS "-std=c++11"
-#	)
-
-elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-	message(STATUS "g++ found")
-	add_definitions(-std=c++0x)
-#	set_property(
-#	   DIRECTORY ${CMAKE_SOURCE_DIR}
-#	   PROPERTY COMPILE_DEFINITIONS "-std=c++0x"
-#	)
-else()
-	message(FATAL_ERROR "Compiler not recognized, exiting")
-	return()
-endif()
 set(CMAKE_CXX_FLAGS_FASTDEB "${GCC_DEBUG_FLAGS} -g -Wall -O3")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -Wall -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -march=native")
@@ -35,11 +25,16 @@ set(CMAKE_C_FLAGS_FASTDEB "${GCC_DEBUG_FLAGS}  -Wall -W -Wundef -Wcast-align -Wn
 set(CMAKE_C_FLAGS_DEBUG "${GCC_DEBUG_FLAGS}  -Wall -W -Wundef -Wcast-align -Wno-implicit-function-declaration -Os -march=native -std=c99")
 set(CMAKE_C_FLAGS_RELEASE "${GCC_DEBUG_FLAGS}  -Wall -W -Wundef -Wcast-align -Wno-implicit-function-declaration -Os -march=native -std=c99")
 
+#include Brotli
+add_subdirectory(brotli)
+include_directories(brotli/include)
+set(BROTLI_LIB "libbrotli")
+
 # Include directory
 include_directories("${PROJECT_SOURCE_DIR}/include")
 
 # Boost
-find_package(Boost 1.40 COMPONENTS iostreams REQUIRED)
+find_package(Boost 1.50 COMPONENTS iostreams program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 
 find_package(snappy)
@@ -72,3 +67,6 @@ target_link_libraries(simple-zlib ${Boost_LIBRARIES} io)
 
 add_executable(simple-bzip2 ${CMAKE_SOURCE_DIR}/simple-bzip2.cpp)
 target_link_libraries(simple-bzip2 ${Boost_LIBRARIES} io)
+
+add_executable(simple-brotli ${CMAKE_SOURCE_DIR}/simple-brotli.cpp)
+target_link_libraries(simple-brotli ${Boost_LIBRARIES} ${BROTLI_LIB} io)

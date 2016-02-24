@@ -55,6 +55,7 @@ std::unique_ptr<T[]> read_file(const char *name, size_t *size, unsigned int extr
     std::streamoff len = file_length(file);
     std::unique_ptr<T[]> to_ret(new T[len + extra]);
     read_file(file, to_ret.get(), static_cast<std::streamsize>(len));
+    *size = len;
     return std::move(to_ret);
 }
 

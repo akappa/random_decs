@@ -1,0 +1,34 @@
+{
+	"folders":
+	[
+		{
+			"path": "."
+		}
+	],
+	"SublimeLinter":
+	{
+		"linters":
+		{
+			"clang": {
+				"extra_flags": "-std=c++11",
+				"include_dirs": [
+						"${project_folder}/include",
+						"${project_folder}/brotli/include",
+						"${project_folder}/brotli/include/brotli"
+				]
+			},
+			"annotations": {
+				"warnings": ["TODO"],
+				"errors": ["FIXME"]
+			}
+		}
+	},
+  "settings": {
+    "todoreview": {
+      "exclude_folders": [
+        "*.git*",
+        "ext_libs*"
+      ]
+    }
+  }
+}
