@@ -15,6 +15,7 @@ set(CMAKE_PREFIX_PATH "~/.local/")
 include(Cpp11)
 include(NinjaColorFix)
 include(ReleaseDefault)
+include(submodules)
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
 set(CMAKE_CXX_FLAGS_FASTDEB "${GCC_DEBUG_FLAGS} -g -Wall -O3")
