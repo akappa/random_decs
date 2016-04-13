@@ -11,3 +11,8 @@
 *.lai
 *.la
 *.a
+
+# CMake & Sublime "temporary" files
+#
+*.txt.user
+*.sublime-workspace
