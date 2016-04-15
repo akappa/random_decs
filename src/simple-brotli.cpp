@@ -29,7 +29,7 @@ std::uint8_t *write(std::uint8_t *data, T val)
 using byte    = std::uint8_t;
 using s_size  = std::uint64_t;
 
-void compress(std::string infile, unsigned int quality, unsigned int window, std::string outfile)
+void compress(std::string infile, std::string outfile, unsigned int quality, unsigned int window, bool no_dict)
 {
 
   using namespace std::chrono;
@@ -52,8 +52,9 @@ void compress(std::string infile, unsigned int quality, unsigned int window, std
 
   // Compress (in-memory)
   brotli::BrotliParams bp;
-  bp.quality = quality;
-  bp.lgwin   = window;
+  bp.quality           = quality;
+  bp.lgwin             = window;
+  bp.enable_dictionary = !no_dict;
 
   // Write output on file
   size_t encoded_size = theoretical_max;
@@ -156,7 +157,8 @@ int main(int argc, char **argv)
           ("quality,q", po::value<unsigned int>()->default_value(11),
            "Compression quality")
           ("window,w", po::value<unsigned int>()->default_value(22),
-           "Window parameter");
+           "Window parameter")
+          ("disable-dictionary", "Disables the static dictionary.");
     }
 
     po::positional_options_description pd;
@@ -176,7 +178,8 @@ int main(int argc, char **argv)
     if (op == Operation::COMPRESS) {
       auto quality = vm["quality"].as<unsigned int>();
       auto window  = vm["window"].as<unsigned int>();
-      compress(infile, quality, window, outfile);
+      auto no_dict    = vm.count("disable-dictionary") > 0;
+      compress(infile, outfile, quality, window, no_dict);
     } else {
       decompress(infile, outfile);
     }
