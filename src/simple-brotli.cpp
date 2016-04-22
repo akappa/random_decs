@@ -29,7 +29,10 @@ std::uint8_t *write(std::uint8_t *data, T val)
 using byte    = std::uint8_t;
 using s_size  = std::uint64_t;
 
-void compress(std::string infile, std::string outfile, unsigned int quality, unsigned int window, bool no_dict)
+void compress(
+  std::string infile, std::string outfile, 
+  unsigned int quality, unsigned int window, 
+  bool no_dict, bool no_rel)
 {
 
   using namespace std::chrono;
@@ -55,6 +58,7 @@ void compress(std::string infile, std::string outfile, unsigned int quality, uns
   bp.quality           = quality;
   bp.lgwin             = window;
   bp.enable_dictionary = !no_dict;
+  bp.enable_relative   = !no_rel;
 
   // Write output on file
   size_t encoded_size = theoretical_max;
@@ -151,18 +155,20 @@ int main(int argc, char **argv)
          "Input file.")
         ("output-file,o", po::value<std::string>()->required(),
          "Output file.");
+    po::positional_options_description pd;
+    pd.add("input-file", 1).add("output-file", 1);
 
     if (op == Operation::COMPRESS) {
       desc.add_options()
           ("quality,q", po::value<unsigned int>()->default_value(11),
-           "Compression quality")
+           "Compression quality.")
           ("window,w", po::value<unsigned int>()->default_value(22),
-           "Window parameter")
-          ("disable-dictionary", "Disables the static dictionary.");
+           "Window parameter.")
+          ("no-dictionary", "Disables the static dictionary.")
+          ("no-relative", "Disables relative distances.");
+      pd.add("quality", 1);
     }
 
-    po::positional_options_description pd;
-    pd.add("input-file", 1).add("output-file", 1);
 
     try {
       po::store(po::command_line_parser(argc, argv).options(desc).positional(pd).run(), vm);
@@ -178,8 +184,9 @@ int main(int argc, char **argv)
     if (op == Operation::COMPRESS) {
       auto quality = vm["quality"].as<unsigned int>();
       auto window  = vm["window"].as<unsigned int>();
-      auto no_dict    = vm.count("disable-dictionary") > 0;
-      compress(infile, outfile, quality, window, no_dict);
+      auto no_dict = vm.count("no-dictionary") > 0;
+      auto no_rel  = vm.count("no-relative") > 0;
+      compress(infile, outfile, quality, window, no_dict, no_rel);
     } else {
       decompress(infile, outfile);
     }
