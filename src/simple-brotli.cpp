@@ -32,7 +32,10 @@ using s_size  = std::uint64_t;
 void compress(
   std::string infile, std::string outfile, 
   unsigned int quality, unsigned int window, 
-  bool no_dict, bool no_rel)
+  bool no_dict, bool no_rel, 
+  bool no_lit_part, bool no_len_part, bool no_dist_part, 
+  bool no_context_literal, bool no_context_distance
+)
 {
 
   using namespace std::chrono;
@@ -55,10 +58,15 @@ void compress(
 
   // Compress (in-memory)
   brotli::BrotliParams bp;
-  bp.quality           = quality;
-  bp.lgwin             = window;
-  bp.enable_dictionary = !no_dict;
-  bp.enable_relative   = !no_rel;
+  bp.quality                 = quality;
+  bp.lgwin                   = window;
+  bp.enable_dictionary       = !no_dict;
+  bp.enable_relative         = !no_rel;
+  bp.enable_lit_part         = !no_lit_part;
+  bp.enable_len_part         = !no_len_part;
+  bp.enable_dist_part        = !no_dist_part;
+  bp.enable_context_literal  = !no_context_literal;
+  bp.enable_context_distance = !no_context_distance;
 
   // Write output on file
   size_t encoded_size = theoretical_max;
@@ -164,8 +172,16 @@ int main(int argc, char **argv)
            "Compression quality.")
           ("window,w", po::value<unsigned int>()->default_value(22),
            "Window parameter.")
-          ("no-dictionary", "Disables the static dictionary.")
-          ("no-relative", "Disables relative distances.");
+          ("no-dictionary",  "Disables the static dictionary.")
+          ("no-relative",    "Disables relative distances.")
+          ("no-part",        "Disables block partitioning.")
+          ("no-lit-part",    "Disables block partitioning for literals.")
+          ("no-len-part",    "Disables block partitioning for insert-and-copy lengths.")
+          ("no-dist-part",   "Disables block partitioning for distances.")
+          ("no-context",     "Disables context modeling.")
+          ("no-context-lit", "Disables context modeling for literals.")
+          ("no-context-dst", "Disables context modeling for distances.");
+
       pd.add("quality", 1);
     }
 
@@ -182,11 +198,18 @@ int main(int argc, char **argv)
     auto outfile    = vm["output-file"].as<std::string>();
 
     if (op == Operation::COMPRESS) {
-      auto quality = vm["quality"].as<unsigned int>();
-      auto window  = vm["window"].as<unsigned int>();
-      auto no_dict = vm.count("no-dictionary") > 0;
-      auto no_rel  = vm.count("no-relative") > 0;
-      compress(infile, outfile, quality, window, no_dict, no_rel);
+      auto quality        = vm["quality"].as<unsigned int>();
+      auto window         = vm["window"].as<unsigned int>();
+      auto no_dict        = vm.count("no-dictionary") > 0;
+      auto no_rel         = vm.count("no-relative") > 0;
+      auto no_part        = vm.count("no-part") > 0;
+      auto no_lit_part    = no_part or vm.count("no-lit-part")  > 0;
+      auto no_len_part    = no_part or vm.count("no-len-part")  > 0;
+      auto no_dist_part   = no_part or vm.count("no-dist-part") > 0;
+      auto no_context     = vm.count("no-context") > 0;
+      auto no_context_lit = no_context or vm.count("no-context-lit") > 0;
+      auto no_context_dst = no_context or vm.count("no-context-dst") > 0;
+      compress(infile, outfile, quality, window, no_dict, no_rel, no_lit_part, no_len_part, no_dist_part, no_context_lit, no_context_dst);
     } else {
       decompress(infile, outfile);
     }
