@@ -85,7 +85,7 @@ void compress(
   write_file(output, storage.data(), sizeof(s_size) + encoded_size);
 }
 
-void decompress(std::string infile, std::string outfile)
+void decompress(std::string infile, std::string outfile, bool print_stats, bool bench_check)
 {
   using namespace std::chrono;
   // Read input
@@ -104,6 +104,8 @@ void decompress(std::string infile, std::string outfile)
 
   // Decompress (in-memory)
   size_t dec_len = len;
+  BrotliEnableStatsPrint = print_stats;
+  BrotliEnableBenchPrint = bench_check;
   auto t_1 = high_resolution_clock::now();
   auto res = BrotliDecompressBuffer(in_len, data, &dec_len, storage.data());
   auto t_2 = high_resolution_clock::now();
@@ -183,6 +185,10 @@ int main(int argc, char **argv)
           ("no-context-dst", "Disables context modeling for distances.");
 
       pd.add("quality", 1);
+    } else if (op == Operation::DECOMPRESS) {
+      desc.add_options()
+        ("print-stats,p", "Print decompression stats on stderr.")
+        ("bench-check,b", "Print CSV-separated benchmark check values.");
     }
 
 
@@ -211,7 +217,9 @@ int main(int argc, char **argv)
       auto no_context_dst = no_context or vm.count("no-context-dst") > 0;
       compress(infile, outfile, quality, window, no_dict, no_rel, no_lit_part, no_len_part, no_dist_part, no_context_lit, no_context_dst);
     } else {
-      decompress(infile, outfile);
+      auto print_stats    = vm.count("print-stats") > 0;
+      auto bench_check    = vm.count("bench-check") > 0;
+      decompress(infile, outfile, print_stats, bench_check);
     }
   } catch (std::exception &e) {
     std::cerr << e.what() << "\n"
