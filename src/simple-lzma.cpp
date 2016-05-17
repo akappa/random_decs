@@ -35,7 +35,7 @@ arguments parse_args(int argc, char **argv) throw (std::runtime_error) {
 	action act = COMPRESS;
 	std::string infile;
 	std::string outfile;
-	int level = 1;
+	int level = 9;
 	int c;
 	while ((c = getopt(argc, argv, "do:l:")) != -1) {
 		switch (c) {
@@ -144,14 +144,14 @@ int main(int argc, char **argv)
         lzma_ret ret = lzma_raw_buffer_decode(opts.filter_chain, 0, data.get(), &in_pos, file_len,
                 output.get(), &dec_pos, out_len);
 		auto t2 = std::chrono::high_resolution_clock::now();
-		auto spent = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+		auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
         if (ret != LZMA_OK) {
             std::cerr << "ERROR: Generic error in decompression" << std::endl;
             std::cerr << "LZMA error code: " << ret << std::endl;
             return 1;
         }
         assert(dec_pos == out_len);
-		std::cout << "Time " << spent.count() << " msecs" << std::endl;
+		std::cout << "Time " << spent.count() << " μs" << std::endl;
     }
     // Write file
     const char *out_file_name = args.output_file.c_str();

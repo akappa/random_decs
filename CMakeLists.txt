@@ -53,6 +53,9 @@ add_library(lz4lc OBJECT ${LZ4_DIR}/lz4.c)
 add_library(lz4hc OBJECT ${LZ4_DIR}/lz4hc.c)
 add_library(lz4 $<TARGET_OBJECTS:lz4lc> $<TARGET_OBJECTS:lz4hc>)
 
+# Booster
+add_subdirectory(external/booster)
+
 # Executable
 add_executable(simple-lz4 ${CMAKE_SOURCE_DIR}/simple-lz4.cpp)
 target_link_libraries(simple-lz4 io lz4)

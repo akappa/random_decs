@@ -1,0 +1,194 @@
+Release notes for the booster tool,  version 0.1.0
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Copyright (C) 2004-2006 Giovanni Manzini
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+
+The source code in this archive is an implementation of the 
+boosting technique described in the paper 
+
+Boosting Textual Compression in Optimal Linear Time
+P. Ferragina, R. Giancarlo, G. Manzini, M. Sciortino
+Journal of the ACM, Vol 52, pagg 688-713, (2005) 
+
+
+INSTALLATION
+To compile just give the command make (without any argument). This creates the
+executables bst (the coder) and unbst (the decoder). 
+
+
+USAGE
+To get a list of the available options for each program just enter the program
+name without arguments. The most important options for the bst tool are:
+-a (for the selection of the base compressor) and -c for the selection 
+of the booster cost model.
+
+The available compressors are listed at the end of the option lists, and you
+can add your own compressor easily (see below).
+
+The booster cost model can be either Entropy Bound (which ensures
+linear running time) or Real Cost (slower but producing a better compression).
+
+In the Real Cost model, whenever the booster needs to know how many
+bits will be produced by a certain algorithm A on input the string S, it calls
+a cost function that takes as input the string S itself. Therefore, it
+is possible (but not mandatory) to define a cost function that computes the
+exact number of bits in A(S), thus obtaining the true cost, (which is of
+course better than an estimate).
+
+In the Entropy Bound mode of operation, whenever the booster needs to know how
+many bits will be produced by a certain algorithm on input S it calls a cost
+function that takes as input only the frequencies of the symbols in S. In this
+case the cost function will typically consists of some modification of the
+order-0 entropy function. Note that this is the only mode of operation
+described in the booster paper above.
+
+To better understand this point let us see how to use the booster with your
+own compressor.
+
+
+ADDING A NEW COMPRESSOR
+A compressor is defined by the structure base_compressor defined in booster.h
+To see how this structure should be initialized let us look at the file 
+huffrle_defs.c where it is defined a huffrle compressor 
+to be used with the booster. This compressor consists of RLE followed by
+the standard Huffman encoding. 
+
+The base_compressor structure is initialized by the function 
+
+  void init_Huffrle_compressor(base_compressor *b)
+
+Note that some fields are initialized with NULL. That's OK, they are not
+mandatory. Let us examine the fields with are initialized. "name" is just the
+name of the compressor. "bound" is a pointer to the cost function used by the
+booster in the Estimate mode of operation. In our example it is the function
+
+  double huff_h0star(stats *s, int alpha_size)
+
+defined in the same file. huff_h0star computes the modified order zero entropy
+of a string S draw from an alphabet of size "alpha_size" (note that not all
+"alpha_size" symbols will necessary appear in S). The structure stats *s 
+contains the number of occurrences of each symbol in S.
+
+The field "cost" contains a pointer to the cost function used by the booster 
+in the True cost mode of operation. In our example it is the function
+
+  int huffrle_cost(symbol *t, int n, int alpha_size)
+ 
+defined in the same file (the type "symbol" is a synonymous of
+"unsigned char"). This function takes as input a string t[0,n-1] over an
+alphabet of size "alpha_size" and returns the number of bits used by huffrle
+to encode it. 
+
+You can fill the fields "bound" and "cost" with any function you like. Of
+course you should respect the prototypes above. The "bound" function takes as
+input the statistic and the alphabet size and returns a double. The function
+"cost" takes as input the string and the alphabet size and returns an integer.
+Of course, the closer the output of these functions is to the actual
+compression cost, the better.
+
+If you do not provide a "bound" function you cannot use the Entropy Bound mode
+of operation; if you do not provide a "cost" function you cannot use the Real
+Cost mode of operation. Hence, if you want to use the booster you need to
+provide at least one of these functions.
+
+The field "merge" is currently not used so just set it to NULL.
+
+The fields "encode", "enc_start", "enc_stop" are used for the actual
+compression after the booster has determined the optimal partition of the
+BWT. The compression consists of a call to "enc_start", followed by a call to
+"encode" for each segment in the optimal partition, followed by a call to
+"enc_stop".
+
+I leave it to you to guess the meaning and the use of the fields "decode", 
+"dec_start", "dec_stop". If in doubt look at the file unboost.c 
+
+
+WAIT, THAT'S NOT ALL!
+Now you have defined your algorithm. To make the booster know about it
+you should do a few changes to the file compr_defs.h. First you have to
+increase by one the constant NUM_BASE_COMPRESSORS. Then you have to 
+add a prototype for your initialization function
+(it was void init_Huffrle_compressor(base_compressor *b) in the previous
+example). Finally, you have to insert a call to your initialization function
+in the body of the procedure init_compr_array(). If you look at the code you
+will know how to do it. 
+
+
+
+FINAL NOTE
+The output file consists of an header of 41 bytes containing: which algo was
+used for compression (1 byte), the size of the input file (4 bytes), the
+position of the eof_symbol in the BWT (4 bytes), and bitmap indicating which
+are the characters actually appearing in the input file (256 bits = 32 byte)
+(see function compress_file() in booster.c). 
+
+After the header the output file contains the concatenation for the output
+produced by the functions "enc_start", "encode", and "enc_stop" discussed 
+above.
+
+Assuming zzzz is the input file name, the default output file name 
+is zzzz.bst for compression and zzzz.y for decompression.
+
+
+EXAMPLES
+// compress using arithmetic coding with the Estimate mode of operation
+[giovanni@booster]$ bst warandpe -a1 -c0 -v
+File size: 3217704 bytes
+Suffix array construction: 1.04 seconds
+lcp6 construction: 1.75 seconds
+Optimal partition computation: 5.16 seconds
+Output file size: 817086 bytes
+  Number of segments: 5678
+  Actual compressed size: 817040 bytes
+  Booster optimal estimate: 789086.166722 bytes
+Elapsed time: 8.866652 seconds.
+
+// compress using arithmetic coding with the True cost mode of operation
+[giovanni@booster]$ bst warandpe -a1 -c1 -v
+File size: 3217704 bytes
+Suffix array construction: 1.05 seconds
+lcp6 construction: 1.75 seconds
+Optimal partition computation: 21.66 seconds
+Output file size: 806635 bytes
+  Number of segments: 7014
+  Actual compressed size: 806590 bytes
+  Booster optimal estimate: 807795.250000 bytes
+Elapsed time: 25.437133 seconds.
+
+// As expected True cost saves space but is slower
+
+// uncompress
+[giovanni@booster]$ unbst warandpe.bst
+// check that the result is identical to the original file
+[giovanni@booster]$ cmp warandpe warandpe.bst.y
+
+
+Note that using the script btest you can compress, decompress, and check the
+result with a single command. Just type
+
+btest file_name [options]
+
+
+
+
+The software in this archive should be considered an ALPHA version. Your
+comments (also on this documentation), bug reports, etc. are extremely
+important to improve the quality of this tool.
+
+Giovanni Manzini
+manzini@mfn.unipmn.it
+
