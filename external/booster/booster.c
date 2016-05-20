@@ -48,7 +48,7 @@ int _boost_CmdLinePar3_flag;      // !=0 if parameter #3 was defined
 // ============ prototypes =====================
 static void fatal_error(char *);
 static void out_of_mem(char *f);
-static double getTime ( void );
+static size_t getTime ( void );
 static int compact_alphabet(symbol *t, int n);
 static void open_files(char *infile_name, char *outfile_name, int use_stdout);
 static int *compute_bwt_lcp(bwt_data *b, int need_lcp);
@@ -77,7 +77,7 @@ static int Alpha_bitmap[ALPHA_BITMAP_SIZE];  // bitmap old->new alphabet
 int main(int argc, char *argv[])
 {  
   void check_compressor_usage(base_compressor *a,int);
-  double end, start;
+  size_t end, start;
   char *infile_name=NULL, *outfile_name=NULL;
   int c, algo_id, use_mtf, flat, use_bwt, outfile_is_stdout;
   base_compressor *compr_array;
@@ -189,8 +189,7 @@ int main(int argc, char *argv[])
     compress_plain(&compr_array[algo_id], algo_id, use_mtf);
   end = getTime();
 
-  if(Verbose>0)
-    fprintf(stderr,"Elapsed time: %f seconds.\n", end-start);
+  fprintf(stderr,"Time %lu μs\n", end-start);
   free(compr_array);
   fclose(Infile);
   fclose(Outfile);
@@ -629,18 +628,15 @@ static void out_of_mem(char *f)
   exit(1);
 }
 
-static double getTime ( void )
+static size_t getTime ( void )
 {
-   double usertime,systime;
+   size_t usertime,systime;
    struct rusage usage;
 
    getrusage ( RUSAGE_SELF, &usage );
 
-   usertime = (double)usage.ru_utime.tv_sec +
-     (double)usage.ru_utime.tv_usec / 1000000.0;
-
-   systime = (double)usage.ru_stime.tv_sec +
-     (double)usage.ru_stime.tv_usec / 1000000.0;
+   usertime = (double)usage.ru_utime.tv_sec * 1000000 + usage.ru_utime.tv_usec;
+   systime = (double)usage.ru_stime.tv_sec * 1000000 + usage.ru_stime.tv_usec / 1000000.0;
 
    return(usertime+systime);
 }

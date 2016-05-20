@@ -128,40 +128,41 @@ int main(int argc, char **argv)
   read_data(file, data.get(), file_len);
   basic_array_source<char> input_source(data.get(), file_len);
 
-    const size_t max = 1500000000; // 1.5G
-    std::unique_ptr<char[]> output(new char[max]);
-    size_t output_file_size = 0;
-  // Step 3: compress/decompress
-    if (args.act != COMPRESS) {
-      basic_array<char> array_sink(output.get(), max);
-      filtering_streambuf<boost::iostreams::input> in;
-      in.push(bzip2_decompressor());
-      in.push(input_source);
-      filtering_streambuf<boost::iostreams::output> out;
-      out.push(array_sink);
-      auto t1 = std::chrono::high_resolution_clock::now();
-      output_file_size = boost::iostreams::copy(in, out);
-      auto t2 = std::chrono::high_resolution_clock::now();
-      auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
-      std::cout << "Time " << spent.count() << " μs" << std::endl;
-    } else {
-      basic_array<char> array_sink(output.get(), max);
-      count_filter<char> c_filter(&output_file_size);
-      filtering_streambuf<boost::iostreams::output> out;
-      out.push(bzip2_compressor(args.compress_level));
-      out.push(c_filter);
-      out.push(array_sink);
-      auto t1 = std::chrono::high_resolution_clock::now();
-      boost::iostreams::copy(input_source, out);
-      auto t2 = std::chrono::high_resolution_clock::now();
-      auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
-      output_file_size = c_filter.get_count();
-      std::cout << "Time " << spent.count() << " μs" << std::endl;
-      std::cout << "Size " << output_file_size << std::endl;
-    }
+  const size_t max = 1500000000; // 1.5G
+  std::unique_ptr<char[]> output(new char[max]);
+  size_t output_file_size = 0;
 
-    const char *out_file_name = args.output_file.c_str();
-    std::ofstream out_file;
-    open_file(out_file, out_file_name);
-    write_file(out_file, output.get(), output_file_size);
+  // Step 3: compress/decompress
+  if (args.act != COMPRESS) {
+    basic_array<char> array_sink(output.get(), max);
+    filtering_streambuf<boost::iostreams::input> in;
+    in.push(bzip2_decompressor());
+    in.push(input_source);
+    filtering_streambuf<boost::iostreams::output> out;
+    out.push(array_sink);
+    auto t1 = std::chrono::high_resolution_clock::now();
+    output_file_size = boost::iostreams::copy(in, out);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+    std::cout << "Time " << spent.count() << " μs" << std::endl;
+  } else {
+    basic_array<char> array_sink(output.get(), max);
+    count_filter<char> c_filter(&output_file_size);
+    filtering_streambuf<boost::iostreams::output> out;
+    out.push(bzip2_compressor(args.compress_level));
+    out.push(c_filter);
+    out.push(array_sink);
+    auto t1 = std::chrono::high_resolution_clock::now();
+    boost::iostreams::copy(input_source, out);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+    output_file_size = c_filter.get_count();
+    std::cout << "Time " << spent.count() << " μs" << std::endl;
+    std::cout << "Size " << output_file_size << std::endl;
   }
+
+  const char *out_file_name = args.output_file.c_str();
+  std::ofstream out_file;
+  open_file(out_file, out_file_name);
+  write_file(out_file, output.get(), output_file_size);
+}
