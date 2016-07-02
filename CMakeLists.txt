@@ -55,6 +55,8 @@ add_library(lz4 $<TARGET_OBJECTS:lz4lc> $<TARGET_OBJECTS:lz4hc>)
 
 # Booster
 add_subdirectory(external/booster)
+add_subdirectory(external/zstd)
+include_directories(external/zstd/include)
 
 # Executable
 add_executable(simple-lz4 ${CMAKE_SOURCE_DIR}/simple-lz4.cpp)
@@ -74,3 +76,6 @@ target_link_libraries(simple-bzip2 ${Boost_LIBRARIES} io)
 
 add_executable(simple-brotli ${CMAKE_SOURCE_DIR}/simple-brotli.cpp)
 target_link_libraries(simple-brotli ${Boost_LIBRARIES} ${BROTLI_LIB} io)
+
+add_executable(simple-zstd ${CMAKE_SOURCE_DIR}/simple-zstd.cpp)
+target_link_libraries(simple-zstd ${Boost_LIBRARIES} libzstd_static io)

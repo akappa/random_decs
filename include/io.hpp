@@ -47,7 +47,7 @@ void write_file(std::ofstream &f, T *data, std::streamsize length) throw (ioexce
         throw ioexception("Failed to write on file");
 }
 
-template <typename T>
+template <typename T = char>
 std::unique_ptr<T[]> read_file(const char *name, size_t *size, unsigned int extra = 0)
 {
     std::ifstream file;

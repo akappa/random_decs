@@ -14,7 +14,8 @@
 				"include_dirs": [
 						"${project_folder}/include",
 						"${project_folder}/brotli/include",
-						"${project_folder}/brotli/include/brotli"
+						"${project_folder}/brotli/include/brotli",
+                      "${project_folder}/external/zstd/include"
 				]
 			},
 			"annotations": {

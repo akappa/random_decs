@@ -1,3 +1,15 @@
 [submodule "brotli"]
 	path = brotli
 	url = https://github.com/farruggia/brotli.git
+[submodule "external/lzham"]
+	path = external/lzham
+	url = https://github.com/farruggia/lzham_codec_devel.git
+[submodule "external/zopfli"]
+	path = external/zopfli
+	url = https://github.com/farruggia/zopfli.git
+[submodule "external/lzfse"]
+	path = external/lzfse
+	url = https://github.com/farruggia/lzfse.git
+[submodule "external/zstd"]
+	path = external/zstd
+	url = git@github.com:farruggia/zstd.git
