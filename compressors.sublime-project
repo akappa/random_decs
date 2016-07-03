@@ -17,6 +17,7 @@
 						"${project_folder}/brotli/include/brotli",
             "${project_folder}/external/zstd/include",
             "${project_folder}/external/lzham/include",
+            "${project_folder}/external/zopfli/include",
 				]
 			},
 			"annotations": {

@@ -56,8 +56,11 @@ add_library(lz4 $<TARGET_OBJECTS:lz4lc> $<TARGET_OBJECTS:lz4hc>)
 # Booster
 add_subdirectory(external/booster)
 add_subdirectory(external/zstd)
+include_directories(external/zstd/include)
 add_subdirectory(external/lzham)
-include_directories(external/zstd/include external/lzham/include)
+include_directories(external/lzham/include)
+add_subdirectory(external/zopfli)
+include_directories(external/zopfli/include)
 
 # Executable
 add_executable(simple-lz4 ${CMAKE_SOURCE_DIR}/simple-lz4.cpp)
@@ -83,3 +86,6 @@ target_link_libraries(simple-zstd ${Boost_LIBRARIES} libzstd_static io)
 
 add_executable(simple-lzham ${CMAKE_SOURCE_DIR}/simple-lzham.cpp)
 target_link_libraries(simple-lzham ${Boost_LIBRARIES} lzhamdll io)
+
+add_executable(simple-zopfli ${CMAKE_SOURCE_DIR}/simple-zopfli.cpp)
+target_link_libraries(simple-zopfli ${Boost_LIBRARIES} zopfli io)
