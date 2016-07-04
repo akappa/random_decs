@@ -3,7 +3,9 @@
 //-- External libraries
 #include <boost/program_options.hpp>
 //-- Shipped libraries
-#include <lzfse/lzfse.h>
+extern "C" {
+  #include <lzfse/lzfse.h>
+}
 //-- Standard libraries
 #include <algorithm>
 #include <chrono>
