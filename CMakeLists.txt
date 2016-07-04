@@ -61,6 +61,8 @@ add_subdirectory(external/lzham)
 include_directories(external/lzham/include)
 add_subdirectory(external/zopfli)
 include_directories(external/zopfli/include)
+add_subdirectory(external/lzfse)
+include_directories(external/lzfse/include)
 
 # Executable
 add_executable(simple-lz4 ${CMAKE_SOURCE_DIR}/simple-lz4.cpp)
@@ -89,3 +91,6 @@ target_link_libraries(simple-lzham ${Boost_LIBRARIES} lzhamdll io)
 
 add_executable(simple-zopfli ${CMAKE_SOURCE_DIR}/simple-zopfli.cpp)
 target_link_libraries(simple-zopfli ${Boost_LIBRARIES} zopfli io)
+
+add_executable(simple-lzfse ${CMAKE_SOURCE_DIR}/simple-lzfse.cpp)
+target_link_libraries(simple-lzfse ${Boost_LIBRARIES} lzfse io)
