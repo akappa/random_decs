@@ -64,6 +64,14 @@ include_directories(external/zopfli/include)
 add_subdirectory(external/lzfse)
 include_directories(external/lzfse/include)
 
+# 7Zip
+add_custom_command(
+  OUTPUT "7za"
+  COMMAND ${PROJECT_SOURCE_DIR}/external/7zip/cmake_wrapper.sh ${PROJECT_BINARY_DIR}
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/external/7zip
+)
+add_custom_target(7z ALL DEPENDS "${PROJECT_BINARY_DIR}/7za")
+
 # Executable
 add_executable(simple-lz4 ${CMAKE_SOURCE_DIR}/simple-lz4.cpp)
 target_link_libraries(simple-lz4 io lz4)

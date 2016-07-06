@@ -13,3 +13,7 @@
 [submodule "external/zstd"]
 	path = external/zstd
 	url = git@github.com:farruggia/zstd.git
+[submodule "7zip"]
+	path = external/7zip
+	url = https://github.com/farruggia/7zip
+	branch = make_build
