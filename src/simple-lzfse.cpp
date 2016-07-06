@@ -48,8 +48,9 @@ std::tuple<std::uint64_t, std::uint64_t> compress(
   out_ptr          = reinterpret_cast<std::uint8_t*>(out_ptr32);
 
   // Compress
+  std::vector<std::uint8_t> scratch_buffer(lzfse_encode_scratch_size(), 0UL);
   auto t_1         = std::chrono::high_resolution_clock::now();  
-  auto comp_size   = lzfse_encode_buffer(out_ptr, out_size, content_ptr, insize, nullptr) + sizeof(*out_ptr32);
+  auto comp_size   = lzfse_encode_buffer(out_ptr, out_size, content_ptr, insize, scratch_buffer.data()) + sizeof(*out_ptr32);
   auto t_2         = std::chrono::high_resolution_clock::now();
   auto time_spent  = std::chrono::duration_cast<std::chrono::microseconds>(t_2 - t_1);
 
@@ -58,6 +59,19 @@ std::tuple<std::uint64_t, std::uint64_t> compress(
   write_file(out_file, output.data(), comp_size);
 
   return std::tuple<std::uint64_t, std::uint64_t>(comp_size, time_spent.count());
+}
+
+std::uint64_t buffer_decode(
+  std::uint8_t *dest_ptr, size_t dest_size, std::uint8_t *src_ptr, size_t src_len
+)
+{
+  std::vector<std::uint8_t> scratch_buffer(lzfse_decode_scratch_size(), 0UL);
+  auto t_1 = std::chrono::high_resolution_clock::now();
+  lzfse_decode_buffer(
+      dest_ptr, dest_size, src_ptr, src_len, scratch_buffer.data()
+  );
+  auto t_2 = std::chrono::high_resolution_clock::now();
+  return std::chrono::duration_cast<std::chrono::microseconds>(t_2 - t_1).count();
 }
 
 std::tuple<std::uint64_t, std::uint64_t> decompress(
@@ -78,8 +92,8 @@ std::tuple<std::uint64_t, std::uint64_t> decompress(
   std::vector<std::uint8_t> dec_data(dec_size, 0);
 
   // Decompress
-  auto time_spent =  lzfse_decode_buffer(
-      dec_data.data(), dec_size, content_ptr, insize - sizeof(*content_ptr_32), nullptr
+  auto time_spent =  buffer_decode(
+      dec_data.data(), dec_size, content_ptr, insize - sizeof(*content_ptr_32)
   );
 
   // Write on file
@@ -112,8 +126,8 @@ std::vector<std::uint64_t> benchmark(
   std::vector<std::uint64_t> dec_times(iterations, 0);
 
   for (auto &i : dec_times) {
-    i = lzfse_decode_buffer(
-      dec_data.data(), dec_size, content_ptr, insize - sizeof(*content_ptr_32), nullptr
+    i = buffer_decode(
+      dec_data.data(), dec_size, content_ptr, insize - sizeof(*content_ptr_32)
     );
   }
 
