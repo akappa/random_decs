@@ -72,6 +72,13 @@ add_custom_command(
 )
 add_custom_target(7z ALL DEPENDS "${PROJECT_BINARY_DIR}/7za")
 
+# Binary compressors
+add_custom_command(
+  OUTPUT kzip lzturbo nz
+  COMMAND cp ${PROJECT_SOURCE_DIR}/external/binary_compressors/kzip ${PROJECT_SOURCE_DIR}/external/binary_compressors/lzturbo ${PROJECT_SOURCE_DIR}/external/binary_compressors/nz ${PROJECT_BINARY_DIR}
+)
+add_custom_target(Binary ALL DEPENDS kzip lzturbo nz)
+
 # Executable
 add_executable(simple-lz4 ${CMAKE_SOURCE_DIR}/simple-lz4.cpp)
 target_link_libraries(simple-lz4 io lz4)
