@@ -1,139 +1,209 @@
-#include <iostream>
-#include <algorithm>
-#include <fstream>
-#include <sstream>
-#include <string>
-#include <unistd.h>
-#include <sys/time.h>
-#include <stdint.h>
-#include <stdexcept>
-#include <chrono>
-
+//-- Internal libraries
+#include <io.hpp>
+//-- External Shipped Libraries
 #include <snappy.h>
 #include <snappy-sinksource.h>
+//-- External libraries
+#include <boost/program_options.hpp>
+//-- Standard libraries
+#include <algorithm>
+#include <chrono>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string>
+#include <tuple>
+#include <unistd.h>
 
-namespace {
 
-void print_usage() {
-	std::cerr << "Usage:" << std::endl;
-	std::cerr << "[-d] infile [-o outfile]" << std::endl;
-	std::cerr << "-d\t\tto decompress;" << std::endl;
-	std::cerr << "-o outfile\tto select the output filename;" << std::endl;
+enum class Operation { COMPRESS, DECOMPRESS, BENCHMARK };
+
+Operation parse_tool(const char *name) {
+  using std::string;
+  string s_name = name,
+         dec    = "decompress",
+         enc    = "compress",
+         bench = "benchmark";
+  if (s_name == dec) {
+    return Operation::DECOMPRESS;
+  } else if (s_name == enc) {
+    return Operation::COMPRESS;
+  } else if (s_name == bench) {
+    return Operation::BENCHMARK;
+  }
+  throw std::logic_error("Invalid tool " + s_name + " (must be either " + enc + ", " + dec + " or " + bench);
 }
 
-enum Action {COMPRESS, DECOMPRESS};
+using measure_t = std::uint64_t;
 
-struct Arguments {
-	std::string input_file;
-	std::string output_file;
-	Action act;
-};
+std::tuple<measure_t, measure_t> compress(const std::string &in_name, const std::string &out_name)
+{
+  // Read input
+  size_t in_len;
+  auto in_data = read_file<char>(in_name.c_str(), &in_len);
+  auto *in_ptr = in_data.get();
 
-struct File {
-	const char *content;
-	size_t size;
-};
+  // Allocate output and set sink
+  std::vector<char> output(snappy::MaxCompressedLength(in_len));
+  snappy::UncheckedByteArraySink sink(output.data());
 
-Arguments parse_args(int argc, char **argv) throw (std::runtime_error) {
-	Action act = COMPRESS;
-	std::string infile;
-	std::string outfile;
-	int c;
-	while ((c = getopt(argc, argv, "do:")) != -1) {
-		switch (c) {
-		case 'd':
-			act = DECOMPRESS;
-			break;
-		case 'o':
-			outfile = optarg;
-			break;
-		case '?':
-			throw std::runtime_error("Unknown option: " + optopt);
-		}
-	}
+  // Set source
+  snappy::ByteArraySource source(in_ptr, in_len);
 
-	if (optind < argc)
-		infile = argv[optind];
-	else
-		throw std::runtime_error("infile not specified");
-	if (outfile.size() == 0)
-		outfile = infile + ".snp";
-	Arguments to_ret = {infile, outfile, act};
-	return to_ret;
+  // Compress
+  auto t_1      = std::chrono::high_resolution_clock::now();
+  auto out_size = snappy::Compress(&source, &sink);
+  auto t_2      = std::chrono::high_resolution_clock::now();
+  auto spent    = std::chrono::duration_cast<std::chrono::microseconds>(t_2 - t_1);
+
+  // Write output on file
+  std::ofstream out_file(out_name, std::ios::binary);
+  write_file(out_file, output.data(), out_size);
+
+  return std::tuple<measure_t, measure_t>(out_size, spent.count());
 }
 
-File read_file(std::string i_file) {
-	std::ifstream file(i_file.c_str(), std::ios_base::in | std::ios_base::binary);
-	char *to_put;
-	if (!file)
-		throw std::runtime_error("Cannot open file");
-	// Determine file length
-	file.seekg(0, std::ios_base::end);
-	size_t length = file.tellg();
-	file.seekg(0, std::ios_base::beg);
-	// Read it in memory
-	to_put = new char[length];
-	file.read(to_put, length);
-	if (file.fail() || file.bad() || (file.gcount() != static_cast<std::streamsize>(length)))
-		throw std::runtime_error("Cannot read the whole file");
-	file.close();
-	File to_ret = { to_put , length };
-	return to_ret;
+std::tuple<measure_t, measure_t> decompress(const std::string &in_name, const std::string &out_name)
+{
+  // Read input
+  size_t in_len;
+  auto in_data = read_file<char>(in_name.c_str(), &in_len);
+  auto *in_ptr = in_data.get();
+
+  // Allocate output
+  size_t out_size;
+  snappy::GetUncompressedLength(in_ptr, in_len, &out_size);
+  std::vector<char> output(out_size);
+
+  auto t1    = std::chrono::high_resolution_clock::now();
+  bool ok    = snappy::RawUncompress(in_ptr, in_len, output.data());
+  auto t2    = std::chrono::high_resolution_clock::now();
+  auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+
+  if (!ok) {
+    throw std::logic_error("Decompression error, exiting");
+  }
+
+  // Write output on file
+  std::ofstream out_file(out_name, std::ios::binary);
+  write_file(out_file, output.data(), out_size);
+
+  return std::tuple<measure_t, measure_t>(out_size, spent.count());
 }
 
-void write_file(std::string name, File i_file) {
-	std::ofstream file(name.c_str(), std::ios_base::binary | std::ios_base::out | std::ios_base::trunc);
-	if (file.good())
-		file.write(i_file.content, i_file.size);
-	if (!file.good()) {
-		file.close();
-		throw std::runtime_error("Failure to write to file");
-	}
-	file.close();
+std::vector<measure_t> benchmark(const std::string &in_name, size_t tries)
+{
+  // Read input
+  size_t in_len;
+  auto in_data = read_file<char>(in_name.c_str(), &in_len);
+  auto *in_ptr = in_data.get();
+
+  // Allocate output
+  size_t out_size;
+  snappy::GetUncompressedLength(in_ptr, in_len, &out_size);
+  std::vector<char> output(out_size);
+
+  std::vector<measure_t> times(tries);
+
+  for (auto &time : times) {
+    auto t1    = std::chrono::high_resolution_clock::now();
+    bool ok    = snappy::RawUncompress(in_ptr, in_len, output.data());
+    auto t2    = std::chrono::high_resolution_clock::now();
+    auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+
+    if (!ok) {
+      throw std::logic_error("Decompression error, exiting");
+    }
+    time = spent.count();    
+  }
+
+  return times;
 }
 
-}
+int main(int argc, char **argv)
+{
+  namespace po = boost::program_options;
+  po::options_description desc;
+  po::variables_map vm;
 
-int main(int argc, char **argv) {
-	// Step 1: Parse the arguments
-	Arguments args;
-	try {
-		args = parse_args(argc, argv);
-	} catch (std::runtime_error &e) {
-		std::cerr << "Error: " << e.what() << std::endl;
-		print_usage();
-		return 1;
-	}
+  if (argc < 1 + 1) {
+    std::cerr << "ERROR: tool needed (either compress, decompress or benchmark)" << std::endl;
+    return EXIT_FAILURE;
+  }
 
-	// Step 2: read the input file
-	File input = read_file(args.input_file);
+  auto tool = *++argv;
+  --argc;
 
-	// Step 3: compress/decompress
-	char *str_output;
-	size_t out_size;
-	if (args.act == COMPRESS) {
-		str_output = new char[snappy::MaxCompressedLength(input.size)];
-		snappy::UncheckedByteArraySink sink(str_output);
-		snappy::ByteArraySource source(input.content, input.size);
-		out_size = snappy::Compress(&source, &sink);
-		std::cout << "Size " << out_size << std::endl;
-	} else {
-		snappy::GetUncompressedLength(input.content, input.size, &out_size);
-		str_output = new char[out_size];
-		auto t1 = std::chrono::high_resolution_clock::now();
-		bool ok = snappy::RawUncompress(input.content, input.size, str_output);
-		auto t2 = std::chrono::high_resolution_clock::now();
-		auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+  try {
 
-		if (!ok) {
-			std::cerr << "Decompression error, exiting" << std::endl;
-			return 1;
-		}
-		std::cout << "Time\t" << spent.count() << "\tμs" << std::endl;
-	}
+    auto op = parse_tool(tool);
 
-	// Step 4: write the output file
-	File output_f = { str_output, out_size };
-	write_file(args.output_file, output_f);
-	return 0;
+    desc.add_options()
+        ("input-file,i", po::value<std::string>()->required(),
+         "Input file.");
+    po::positional_options_description pd;
+    pd.add("input-file", 1);
+
+    if (op != Operation::BENCHMARK) {
+      desc.add_options()
+        ("output-file,o", po::value<std::string>()->required(),
+         "Output file.");
+      pd.add("output-file", 1);
+    } else {
+      desc.add_options()
+        ("tries,d", po::value<size_t>()->default_value(3),
+          "Number of times decompression must be performed");
+      pd.add("tries",1);
+    }
+
+    try {
+      po::store(po::command_line_parser(argc, argv).options(desc).positional(pd).run(), vm);
+      po::notify(vm);
+    } catch (boost::program_options::error &e) {
+      throw std::runtime_error(e.what());
+    }
+
+    // Collect parameters
+    auto infile     = vm["input-file"].as<std::string>();
+
+    std::vector<measure_t> sizes, times;
+    switch (op) {
+      case Operation::COMPRESS: {
+        auto outfile    = vm["output-file"].as<std::string>();
+        measure_t size, time;
+        std::tie(size, time) = compress(infile, outfile);
+        sizes.push_back(size);
+        times.push_back(time);
+        break;
+      }
+      case Operation::DECOMPRESS: {
+        auto outfile        = vm["output-file"].as<std::string>();
+        measure_t size, time;
+        std::tie(size, time) = decompress(infile, outfile);
+        sizes.push_back(size);
+        times.push_back(time);
+        break;
+      }
+      default: {
+        assert(op == Operation::BENCHMARK);
+        auto tries = vm["tries"].as<size_t>();
+        times = benchmark(infile, tries);
+      }
+    }
+    for (auto i : sizes) {
+      std::cout << "Size\t" << i << "\tbytes" << std::endl;
+    }
+    for (auto i : times) {
+      std::cout << "Time\t" << i << "\tμs" << std::endl;
+    }
+  } catch (std::exception &e) {
+    std::cerr << e.what() << "\n"
+              << "Command-line options:"  << "\n"
+              << desc << std::endl;
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
 }

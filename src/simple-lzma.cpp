@@ -1,71 +1,37 @@
-#include <iostream>
-#include <lzma.h>
-#include <assert.h>
-#include <memory>
-#include <string>
-#include <stdlib.h>
-#include <unistd.h>
-#include <stdexcept>
-#include <chrono>
+//-- Internal libraries
 #include <io.hpp>
+//-- External libraries
+#include <boost/program_options.hpp>
+#include <lzma.h>
+//-- Standard libraries
+#include <algorithm>
+#include <chrono>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string>
+#include <tuple>
+#include <unistd.h>
 
-void print_usage() {
-  std::cerr << "Usage:" << std::endl;
-  std::cerr << "[-l] [-d] infile [-o outfile]" << std::endl;
-  std::cerr << "-d\t\tto decompress;" << std::endl;
-  std::cerr << "-o outfile\tto select the output filename;" << std::endl;
-  std::cerr << "-l level\tcompression level (ignored in decompression)" << std::endl;
-}
+using measure_t = std::uint64_t;
+enum class Operation { COMPRESS, DECOMPRESS, BENCHMARK };
 
-enum action {COMPRESS, DECOMPRESS};
-
-struct arguments {
-  std::string input_file;
-  std::string output_file;
-  unsigned int compress_level;
-  action act;
-};
-
-struct file {
-  const char *content;
-  size_t size;
-};
-
-arguments parse_args(int argc, char **argv) throw (std::runtime_error) {
-  action act = COMPRESS;
-  std::string infile;
-  std::string outfile;
-  int level = 9;
-  int c;
-  while ((c = getopt(argc, argv, "do:l:")) != -1) {
-    switch (c) {
-      case 'd':
-      act = DECOMPRESS;
-      break;
-      case 'o':
-      outfile = optarg;
-      break;
-      case 'l':
-      level = atoi(optarg);
-      if (level < 0 || level > 9)
-        throw std::runtime_error("Invalid compression level");
-      break;
-      case '?':
-      throw std::runtime_error("Unknown option: " + std::to_string(optopt));
-    }
+Operation parse_tool(const char *name) {
+  std::string s_name = name,
+              dec    = "decompress",
+              enc    = "compress",
+              bench = "benchmark";
+  if (s_name == dec) {
+    return Operation::DECOMPRESS;
+  } else if (s_name == enc) {
+    return Operation::COMPRESS;
+  } else if (s_name == bench) {
+    return Operation::BENCHMARK;
   }
-
-  if (optind < argc) {
-    infile = argv[optind];
-  } else {
-    throw std::runtime_error("infile not specified");
-  }
-
-  if (outfile.size() == 0) {
-    outfile = infile + ".rxz";
-  }
-  arguments to_ret = {infile, outfile, static_cast<unsigned int>(level), act};
-  return to_ret;
+  throw std::logic_error("Invalid tool " + s_name + " (must be either " + enc + ", " + dec + " or " + bench);
 }
 
 struct lzma_opts {
@@ -82,93 +48,231 @@ void get_preset(uint32_t preset, lzma_opts *opts)
   chain[1] = {LZMA_VLI_UNKNOWN, 0};
 }
 
-int main(int argc, char **argv)
+std::tuple<measure_t, measure_t> compress(const std::string &in_name, const std::string &out_name, size_t quality)
 {
-  // Parse the command-line
-  arguments args;
-  try {
-    args = parse_args(argc, argv);
-  } catch (std::runtime_error e) {
-    std::cerr << "ERROR: " << e.what() << std::endl;
-    print_usage();
-    return 1;
+  // Read input file and allocate the output buffer
+  std::ifstream file;
+  open_file(file, in_name.c_str());
+  std::streamoff file_len = file_length(file);
+  std::vector<uint8_t> data(file_len);
+  read_data(file, data.data(), file_len);
+  size_t out_len;
+  std::vector<uint8_t> output(file_len * 1.1 + 200 * (1 << 10)); // 10% max expansion
+
+  // Write uncompressed length and preset
+  std::uint32_t *r_buf = reinterpret_cast<std::uint32_t*>(output.data());
+  *r_buf++ = file_len;
+  *r_buf++ = quality;
+  out_len = std::distance(output.data(), reinterpret_cast<uint8_t*>(r_buf));
+
+  // Get the preset
+  lzma_opts opts;
+  get_preset(quality, &opts);
+
+  // Encode it
+  auto t1  = std::chrono::high_resolution_clock::now();
+  auto ret = lzma_raw_buffer_encode(
+    opts.filter_chain, 0, 
+    data.data(),
+    file_len, 
+    output.data(), &out_len, output.size()
+  );
+  auto t2 = std::chrono::high_resolution_clock::now();
+  auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+  if (ret != LZMA_OK) {
+    std::stringstream ss;
+    ss << "ERROR: Generic error in compression; "
+       << "LZMA error code: " << ret;
+    throw std::logic_error(ss.str());
   }
 
-  // Read input file and allocate the output buffer
-  const char *file_name = args.input_file.c_str();
+  // Write file
+  std::ofstream out_file;
+  open_file(out_file, out_name.c_str());
+  write_file(out_file, output.data(), out_len);
+
+  return std::tuple<measure_t, measure_t>(out_len, spent.count());
+}
+
+std::tuple<measure_t, measure_t> decompress(const std::string &in_name, const std::string &out_name)
+{
+  // Read input file
   std::ifstream file;
-  open_file(file, file_name);
+  open_file(file, in_name.c_str());
   std::streamoff file_len = file_length(file);
-  std::unique_ptr<uint8_t[]> data(new uint8_t[file_len]);
-  read_data(file, data.get(), file_len);
-  size_t out_len;
-  std::unique_ptr<uint8_t[]> output;
+  std::vector<uint8_t> data(file_len);
+  read_data(file, data.data(), file_len);
 
-  typedef uint32_t flen_t;
-  if (args.act == COMPRESS) {
-    output.reset(new uint8_t[file_len]);
-    // Write uncompressed length and preset
-    flen_t *r_buf = reinterpret_cast<flen_t*>(output.get());
-    *r_buf++ = file_len;
-    *r_buf++ = args.compress_level;
-    out_len = std::distance(output.get(), reinterpret_cast<uint8_t*>(r_buf));
+  // Get uncompressed length and preset
+  std::uint32_t *r_buf = reinterpret_cast<std::uint32_t*>(data.data());
+  auto out_len = *r_buf++;
+  auto preset = *r_buf++;
 
-    // Get the preset
-    lzma_opts opts;
-    get_preset(args.compress_level, &opts);
+  // Allocate output and build the preset
+  lzma_opts opts;
+  get_preset(preset, &opts);
 
-    // Encode it
-    auto t1 = std::chrono::high_resolution_clock::now();
-    lzma_ret ret = lzma_raw_buffer_encode(
-      opts.filter_chain, 0, 
-      data.get(), 
-      file_len, 
-      output.get(), 
-      &out_len, 
-      file_len
-    );
-    auto t2 = std::chrono::high_resolution_clock::now();
-    auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
-    if (ret != LZMA_OK) {
-      std::cerr << "ERROR: Generic error in compression" << std::endl;
-      std::cerr << "LZMA error code: " << ret << std::endl;
-      return 1;
-    }
-    std::cout << "Time " << spent.count() << " μs" << std::endl;
-    std::cout << "Size " << out_len << std::endl;
-  } else {
-    // Get uncompressed length and preset
-    uint32_t preset;
-    flen_t *r_buf = reinterpret_cast<flen_t*>(data.get());
-    out_len = *r_buf++;
-    preset = *r_buf++;
+  // Allocate data
+  std::vector<uint8_t> output(out_len);
+  size_t in_pos = std::distance(data.data(), reinterpret_cast<uint8_t*>(r_buf));
 
-    // Build the preset
-    lzma_opts opts;
-    get_preset(preset, &opts);
+  // Decompress
+  size_t dec_pos = 0;
+  auto t1 = std::chrono::high_resolution_clock::now();
+  lzma_ret ret = lzma_raw_buffer_decode(opts.filter_chain, 0, data.data(), &in_pos, file_len,
+    output.data(), &dec_pos, out_len);
+  auto t2 = std::chrono::high_resolution_clock::now();
+  auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+  if (ret != LZMA_OK) {
+    std::stringstream ss;
+    ss << "ERROR: Generic error in compression; "
+       << "LZMA error code: " << ret;
+    throw std::logic_error(ss.str());
+  }
+  assert(dec_pos == out_len);
+ 
+  // Write file
+  std::ofstream out_file;
+  open_file(out_file, out_name.c_str());
+  write_file(out_file, output.data(), out_len);
 
-    // Allocate data
-    output.reset(new uint8_t[out_len]);
-    size_t in_pos = std::distance(data.get(), reinterpret_cast<uint8_t*>(r_buf));
+  return std::tuple<measure_t, measure_t>(out_len, spent.count());
+}
 
-    // Decompress
+std::vector<measure_t> benchmark(const std::string &in_name, size_t tries)
+{
+  // Read input file
+  std::ifstream file;
+  open_file(file, in_name.c_str());
+  std::streamoff file_len = file_length(file);
+  std::vector<uint8_t> data(file_len);
+  read_data(file, data.data(), file_len);
+
+  // Get uncompressed length and preset
+  std::uint32_t *r_buf = reinterpret_cast<std::uint32_t*>(data.data());
+  auto out_len = *r_buf++;
+  auto preset = *r_buf++;
+
+  // Allocate output and build the preset
+  lzma_opts opts;
+  get_preset(preset, &opts);
+
+  // Allocate data
+  std::vector<uint8_t> output(out_len);
+  size_t in_pos = std::distance(data.data(), reinterpret_cast<uint8_t*>(r_buf));
+
+  // Decompress
+  std::vector<measure_t> times(tries, 0);
+  for (auto &time : times) {
+    auto start_pos = in_pos;
     size_t dec_pos = 0;
+    std::fill(output.begin(), output.end(), 0);
     auto t1 = std::chrono::high_resolution_clock::now();
-    lzma_ret ret = lzma_raw_buffer_decode(opts.filter_chain, 0, data.get(), &in_pos, file_len,
-      output.get(), &dec_pos, out_len);
+    lzma_ret ret = lzma_raw_buffer_decode(opts.filter_chain, 0, data.data(), &start_pos, file_len,
+      output.data(), &dec_pos, out_len);
     auto t2 = std::chrono::high_resolution_clock::now();
     auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
     if (ret != LZMA_OK) {
-      std::cerr << "ERROR: Generic error in decompression" << std::endl;
-      std::cerr << "LZMA error code: " << ret << std::endl;
-      return 1;
+      std::stringstream ss;
+      ss << "ERROR: Generic error in compression; "
+         << "LZMA error code: " << ret;
+      throw std::logic_error(ss.str());
     }
     assert(dec_pos == out_len);
-    std::cout << "Time " << spent.count() << " μs" << std::endl;
+    time = spent.count();
   }
-  // Write file
-  const char *out_file_name = args.output_file.c_str();
-  std::ofstream out_file;
-  open_file(out_file, out_file_name);
-  write_file(out_file, output.get(), out_len);
+  return times;
+}
+
+int main(int argc, char **argv)
+{
+  namespace po = boost::program_options;
+  po::options_description desc;
+  po::variables_map vm;
+
+  if (argc < 1 + 1) {
+    std::cerr << "ERROR: tool needed (either compress, decompress or benchmark)" << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  auto tool = *++argv;
+  --argc;
+
+  try {
+
+    auto op = parse_tool(tool);
+
+    desc.add_options()
+        ("input-file,i", po::value<std::string>()->required(),
+         "Input file.");
+    po::positional_options_description pd;
+    pd.add("input-file", 1);
+
+    if (op != Operation::BENCHMARK) {
+        desc.add_options()
+          ("output-file,o", po::value<std::string>()->required(),
+           "Output file.");
+        pd.add("output-file", 1);
+    }
+
+    if (op == Operation::COMPRESS) {
+      desc.add_options()
+          ("quality,q", po::value<unsigned int>()->default_value(9),
+           "Compression quality.");
+      pd.add("quality", 1);
+    } else if (op == Operation::BENCHMARK) {
+      desc.add_options()
+        ("tries,t", po::value<unsigned int>()->default_value(3),
+          "Number of decompressions");
+      pd.add("tries", 1);
+    }
+
+    try {
+      po::store(po::command_line_parser(argc, argv).options(desc).positional(pd).run(), vm);
+      po::notify(vm);
+    } catch (boost::program_options::error &e) {
+      throw std::runtime_error(e.what());
+    }
+
+    // Collect parameters
+    auto infile     = vm["input-file"].as<std::string>();
+
+    std::vector<measure_t> sizes, times;
+    switch (op) {
+      case Operation::COMPRESS: {
+        auto outfile    = vm["output-file"].as<std::string>();
+        auto quality        = vm["quality"].as<unsigned int>();
+        measure_t size, time;
+        std::tie(size, time) = compress(infile, outfile, quality);
+        sizes.push_back(size);
+        times.push_back(time);
+        break;
+      }
+      case Operation::DECOMPRESS: {
+        auto outfile        = vm["output-file"].as<std::string>();
+        measure_t size, time;
+        std::tie(size, time) = decompress(infile, outfile);
+        sizes.push_back(size);
+        times.push_back(time);
+        break;
+      }
+      default: {
+        assert(op == Operation::BENCHMARK);
+        auto tries = vm["tries"].as<unsigned int>();
+        times = benchmark(infile, tries);
+      }
+    }
+    for (auto i : sizes) {
+      std::cout << "Size\t" << i << "\tbytes" << std::endl;
+    }
+    for (auto i : times) {
+      std::cout << "Time\t" << i << "\tμs" << std::endl;
+    }
+  } catch (std::exception &e) {
+    std::cerr << e.what() << "\n"
+              << "Command-line options:"  << "\n"
+              << desc << std::endl;
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
 }

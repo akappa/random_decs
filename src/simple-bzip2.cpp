@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string>
+#include <tuple>
 #include <unistd.h>
 
 enum class Operation { COMPRESS, DECOMPRESS, BENCHMARK };
@@ -248,7 +249,7 @@ int main(int argc, char **argv)
     switch (op) {
       case Operation::COMPRESS: {
         auto outfile    = vm["output-file"].as<std::string>();
-        auto quality        = vm["quality"].as<unsigned int>();
+        auto quality    = vm["quality"].as<unsigned int>();
         measure_t size, time;
         std::tie(size, time) = compress(infile, outfile, quality);
         sizes.push_back(size);

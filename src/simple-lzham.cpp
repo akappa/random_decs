@@ -227,8 +227,8 @@ int main(int argc, char **argv)
               "Window size, in log_2(bits): e.g., 28 = 256MiB.")
              ("parallelism,p", po::value<size_t>()->default_value(1),
               "Number of threads used, positive integer.")
-             ("succinct-compress,s", "Better compression ratio, slower compression.")
-             ("succinct-decompress,S", "Better compression ratio, slower decompression.");
+             ("succinct-compress,s", po::value<bool>()->default_value(false), "Better compression ratio, slower compression.")
+             ("succinct-decompress,S", po::value<bool>()->default_value(false), "Better compression ratio, slower decompression.");
         pd.add("level", 1).add("window", 1);
       }
     } else {
@@ -253,27 +253,27 @@ int main(int argc, char **argv)
       auto quality     = vm["level"].as<size_t>();
       auto window      = vm["window"].as<size_t>();
       auto parallelism = vm["parallelism"].as<size_t>();
-      auto succinct_c  = vm.count("succinct-compress") > 0;
-      auto succinct_d  = vm.count("succinct-decompress") > 0;
+      auto succinct_c  = vm["succinct-compress"].as<bool>();
+      auto succinct_d  = vm["succinct-decompress"].as<bool>();
 
       size_t out_size, time;
       std::tie(out_size, time) = compress(
         infile, outfile, 
         quality, window, parallelism, succinct_c, succinct_d
       );
-      std::cout << "Size\t" << out_size << "\n"
-                << "Time\t" << time     << std::endl;
+      std::cout << "Size\t" << out_size << "\tbytes\n"
+                << "Time\t" << time     << "\tμs" << std::endl;
     } else if (op == Operation::DECOMPRESS) {
       auto outfile    = vm["output-file"].as<std::string>();
       size_t out_size, time;
       std::tie(out_size, time) = decompress(infile, outfile);
-      std::cout << "Size\t" << out_size << "\n"
-                << "Time\t" << time     << std::endl;
+      std::cout << "Size\t" << out_size << "\tbytes\n"
+                << "Time\t" << time     << "\tμs" << std::endl;
     } else {
       auto tries  = vm["tries"].as<size_t>();
       auto times  = benchmark(infile, tries);
       for (auto i : times) {
-        std::cout << "Time\t" << i << std::endl;
+        std::cout << "Time\t" << i << "\tμs" << std::endl;
       }
     }
   } catch (std::exception &e) {
