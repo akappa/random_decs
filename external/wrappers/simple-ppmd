@@ -1,0 +1,33 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+./simple-ppmd-parser $@ | (
+  read cmd
+  if [ -z ${cmd} ] ; then
+    exit 1
+  fi
+  case ${cmd} in
+    C)  read infile
+        read outfile
+        read order
+        read memory
+				rm -f ${outfile}
+        ./7za a ${outfile} ${infile} -y "-m0=PPMd:mem=${memory}m:o=${order}"
+        ;;
+    D)  read infile
+        read outfile
+        tmp_dir="$(mktemp -d)"
+        ./7za x ${infile} -o${tmp_dir}
+        find "${tmp_dir}" -mindepth 1 -exec mv "{}" ${outfile} \;
+        rmdir "${tmp_dir}"
+        ;;
+    B)  read infile
+        read tries
+        for i in $(seq 1 ${tries}) ; do
+          ./7za t ${infile} | grep "Time"
+        done
+        ;;
+  esac
+)

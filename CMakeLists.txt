@@ -109,3 +109,12 @@ target_link_libraries(simple-zopfli ${Boost_LIBRARIES} zopfli io)
 
 add_executable(simple-lzfse ${CMAKE_SOURCE_DIR}/simple-lzfse.cpp)
 target_link_libraries(simple-lzfse ${Boost_LIBRARIES} lzfse io)
+
+# Binary wrappers
+add_executable(simple-ppmd-parser ${CMAKE_SOURCE_DIR}/simple-ppmd-parser.cpp)
+target_link_libraries(simple-ppmd-parser ${Boost_LIBRARIES})
+add_custom_command(
+  OUTPUT "simple-ppmd"
+  COMMAND cp ${PROJECT_SOURCE_DIR}/external/wrappers/simple-ppmd ${PROJECT_BINARY_DIR}
+)
+add_custom_target(simple-ppmd ALL DEPENDS "${PROJECT_BINARY_DIR}/simple-ppmd")
