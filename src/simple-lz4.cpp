@@ -1,121 +1,213 @@
-#include <iostream>
+//-- Internal libraries
+#include <io.hpp>
+//-- External libraries
+#include <boost/program_options.hpp>
+//-- Shipped libraries
+#include <lz4.h>
+#include <lz4hc.h>
+//-- Standard libraries
 #include <algorithm>
-#include <fstream>
-#include <sstream>
-#include <string>
-#include <unistd.h>
-#include <sys/time.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdexcept>
 #include <chrono>
-#include "io.hpp"
-#include "lz4.h"
-#include "lz4hc.h"
+#include <cstdint>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <tuple>
 
-namespace {
+enum class Operation { COMPRESS, DECOMPRESS, BENCHMARK };
 
-enum action {COMPRESS, DECOMPRESS};
-
-struct arguments {
-	std::string input_file;
-	std::string output_file;
-	action act;
-};
-
-struct file {
-	const char *content;
-	size_t size;
-};
-
-arguments parse_args(int argc, char **argv) throw (std::runtime_error) {
-	action act = COMPRESS;
-	std::string infile;
-	std::string outfile;
-	int c;
-	while ((c = getopt(argc, argv, "do:l:")) != -1) {
-		switch (c) {
-		case 'd':
-			act = DECOMPRESS;
-			break;
-		case 'o':
-			outfile = optarg;
-			break;
-		case '?':
-			throw std::runtime_error("Unknown option: " + std::to_string(optopt));
-		}
-	}
-
-	if (optind < argc)
-		infile = argv[optind];
-	else
-		throw std::runtime_error("infile not specified");
-	if (outfile.size() == 0)
-		outfile = infile + ".lz4";
-	arguments to_ret = {infile, outfile, act};
-	return to_ret;
+Operation parse_tool(const char *name) {
+  std::string s_name = name,
+              dec    = "decompress",
+              enc    = "compress",
+              bench  = "benchmark";
+  if (s_name == dec) {
+    return Operation::DECOMPRESS;
+  } else if (s_name == enc) {
+    return Operation::COMPRESS;
+  } else if (s_name == bench) {
+    return Operation::BENCHMARK;
+  }
+  throw std::logic_error("Invalid tool " + s_name + " (must be either " + enc + ", " + dec + " or " + bench);
 }
 
-void print_usage() {
-	std::cerr << "Usage:" << std::endl;
-	std::cerr << "[-d] infile [-o outfile]" << std::endl;
-	std::cerr << "-d\t\tto decompress;" << std::endl;
-	std::cerr << "-o outfile\tto select the output filename;" << std::endl;
+using measure_t = std::uint64_t;
+
+std::tuple<measure_t, measure_t> compress(const std::string &in_name, const std::string &out_name)
+{
+  std::ifstream file;
+  open_file(file, in_name.c_str());
+  std::streamoff file_len = file_length(file);
+  std::vector<char> data(file_len);
+  read_data(file, data.data(), file_len);
+
+  const size_t max = file_len * 1.1; // 10% more than input
+  std::vector<char> output(max, 0U);
+  size_t output_file_size = 0;
+
+  // First, we write the input size on the first 8 bytes
+  *reinterpret_cast<std::uint64_t*>(output.data()) = file_len;
+  output_file_size = sizeof(std::uint64_t);
+
+  // Then, we write the compress rep.
+  auto t1 = std::chrono::high_resolution_clock::now();
+  output_file_size += LZ4_compressHC(data.data(), output.data() + output_file_size, file_len);
+  auto t2 = std::chrono::high_resolution_clock::now();
+  auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+
+  //std::cout << "Writing to " << out_file_name << ", size " << output_file_size << std::endl;
+  std::ofstream out_file;
+  open_file(out_file, out_name.c_str());
+  write_file(out_file, output.data(), output_file_size);
+
+  return std::tuple<measure_t, measure_t>(output_file_size, spent.count());
 }
+
+std::tuple<measure_t, measure_t> decompress(const std::string &in_name, const std::string &out_name)
+{
+  std::ifstream file;
+  open_file(file, in_name.c_str());
+  std::streamoff file_len = file_length(file);
+  std::vector<char> data(file_len);
+  read_data(file, data.data(), file_len);
+
+  auto out_size = *reinterpret_cast<std::uint64_t*>(data.data());
+  std::vector<char> output(out_size, 0);
+
+  auto t1 = std::chrono::high_resolution_clock::now();
+  LZ4_uncompress(data.data() + sizeof(std::uint64_t), output.data(), out_size);
+  auto t2 = std::chrono::high_resolution_clock::now();
+  auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+  if (out_size == static_cast<std::uint64_t>(-1)) {
+      std::cerr << "ERROR while decompressing" << std::endl;
+      exit(1);
+  }
+
+  std::ofstream out_file;
+  open_file(out_file, out_name.c_str());
+  write_file(out_file, output.data(), out_size);
+
+  return std::tuple<measure_t, measure_t>(out_size, spent.count());
+}
+
+std::vector<measure_t> benchmark(const std::string &in_name, size_t tries)
+{
+  std::ifstream file;
+  open_file(file, in_name.c_str());
+  std::streamoff file_len = file_length(file);
+  std::vector<char> data(file_len);
+  read_data(file, data.data(), file_len);
+
+  auto out_size = *reinterpret_cast<std::uint64_t*>(data.data());
+  std::vector<char> output(out_size, 0);
+
+  std::vector<measure_t> times(tries, 0);
+
+  for (auto &time : times) {
+    auto t1 = std::chrono::high_resolution_clock::now();
+    LZ4_uncompress(data.data() + sizeof(std::uint64_t), output.data(), out_size);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+    if (out_size == static_cast<std::uint64_t>(-1)) {
+        std::cerr << "ERROR while decompressing" << std::endl;
+        exit(1);
+    }
+    time = spent.count();    
+  }
+
+  return times;
 }
 
 int main(int argc, char **argv)
 {
-	// The field is 64-bit long
-	typedef std::uint64_t cfile_t;
-	// Step 1: Parse the arguments
-	arguments args;
-	try {
-		args = parse_args(argc, argv);
-	} catch (std::runtime_error &e) {
-		std::cerr << "Error: " << e.what() << std::endl;
-		print_usage();
-		return 1;
-	}
+    namespace po = boost::program_options;
+  po::options_description desc;
+  po::variables_map vm;
 
-	// Step 2: read the input file
-    const char *file_name = args.input_file.c_str();
-    std::ifstream file;
-    open_file(file, file_name);
-    std::streamoff file_len = file_length(file);
-    std::unique_ptr<char[]> data(new char[file_len]);
-    read_data(file, data.get(), file_len);
+  if (argc < 1 + 1) {
+    std::cerr << "ERROR: tool needed (either compress, decompress or benchmark)" << std::endl;
+    return EXIT_FAILURE;
+  }
 
-    // Step 3: allocate the output array
-    const cfile_t max = 1500000000; // 1.5G
-    std::unique_ptr<char[]> output(new char[max]);
-	cfile_t output_file_size = 0;
+  auto tool = *++argv;
+  --argc;
 
-	// Step 4: compress/decompress
-	if (args.act != COMPRESS) {
-        // First, we retrieve the original data size
-        output_file_size = *reinterpret_cast<cfile_t*>(data.get());
-		auto t1 = std::chrono::high_resolution_clock::now();
-        LZ4_uncompress(data.get() + sizeof(cfile_t), output.get(), output_file_size);
-		auto t2 = std::chrono::high_resolution_clock::now();
-		auto spent = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
-        if (output_file_size == static_cast<cfile_t>(-1)) {
-            std::cerr << "ERROR while decompressing" << std::endl;
-            exit(1);
-        }
-		std::cout << "Time " << spent.count() << " msecs" << std::endl;
-	} else {
-        // First, we write the input size on the first 8 bytes
-        *reinterpret_cast<cfile_t*>(output.get()) = file_len;
-        output_file_size = sizeof(cfile_t);
-        // Then, we write the compress rep.
-        output_file_size += LZ4_compressHC(data.get(), output.get() + output_file_size, file_len);
-        std::cout << "Size " << output_file_size << std::endl;
-	}
+  try {
 
-    const char *out_file_name = args.output_file.c_str();
-    //std::cout << "Writing to " << out_file_name << ", size " << output_file_size << std::endl;
-    std::ofstream out_file;
-    open_file(out_file, out_file_name);
-    write_file(out_file, output.get(), output_file_size);
+    auto op = parse_tool(tool);
+
+    desc.add_options()
+        ("input-file,i", po::value<std::string>()->required(),
+         "Input file.");
+    po::positional_options_description pd;
+    pd.add("input-file", 1);
+
+    if (op != Operation::BENCHMARK) {
+        desc.add_options()
+          ("output-file,o", po::value<std::string>()->required(),
+           "Output file.");
+        pd.add("output-file", 1);
+    }
+
+    if (op == Operation::COMPRESS) {
+      desc.add_options()
+          ("quality,q", po::value<unsigned int>()->default_value(11),
+           "Compression quality.");
+      pd.add("quality", 1);
+    } else if (op == Operation::BENCHMARK) {
+      desc.add_options()
+        ("tries,t", po::value<unsigned int>()->default_value(3),
+          "Number of decompressions");
+      pd.add("tries", 1);
+    }
+
+    try {
+      po::store(po::command_line_parser(argc, argv).options(desc).positional(pd).run(), vm);
+      po::notify(vm);
+    } catch (boost::program_options::error &e) {
+      throw std::runtime_error(e.what());
+    }
+
+    // Collect parameters
+    auto infile     = vm["input-file"].as<std::string>();
+
+    std::vector<measure_t> sizes, times;
+    switch (op) {
+      case Operation::COMPRESS: {
+        auto outfile    = vm["output-file"].as<std::string>();
+        measure_t size, time;
+        std::tie(size, time) = compress(infile, outfile);
+        sizes.push_back(size);
+        times.push_back(time);
+        break;
+      }
+      case Operation::DECOMPRESS: {
+        auto outfile        = vm["output-file"].as<std::string>();
+        measure_t size, time;
+        std::tie(size, time) = decompress(infile, outfile);
+        sizes.push_back(size);
+        times.push_back(time);
+        break;
+      }
+      default: {
+        assert(op == Operation::BENCHMARK);
+        auto tries = vm["tries"].as<unsigned int>();
+        times = benchmark(infile, tries);
+      }
+    }
+    for (auto i : sizes) {
+      std::cout << "Size\t" << i << "\tbytes" << std::endl;
+    }
+    for (auto i : times) {
+      std::cout << "Time\t" << i << "\tμs" << std::endl;
+    }
+  } catch (std::exception &e) {
+    std::cerr << e.what() << "\n"
+              << "Command-line options:"  << "\n"
+              << desc << std::endl;
+    return EXIT_FAILURE;
+  }
+  return EXIT_SUCCESS;
 }

@@ -123,13 +123,13 @@ int main(int argc, char **argv) {
 		auto t1 = std::chrono::high_resolution_clock::now();
 		bool ok = snappy::RawUncompress(input.content, input.size, str_output);
 		auto t2 = std::chrono::high_resolution_clock::now();
-		auto spent = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+		auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
 
 		if (!ok) {
 			std::cerr << "Decompression error, exiting" << std::endl;
 			return 1;
 		}
-		std::cout << "Time " << spent.count() << " msecs" << std::endl;
+		std::cout << "Time\t" << spent.count() << "\tμs" << std::endl;
 	}
 
 	// Step 4: write the output file

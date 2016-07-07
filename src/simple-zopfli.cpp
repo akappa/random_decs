@@ -94,7 +94,7 @@ std::uint64_t decompress_buffer(
   auto t1 = std::chrono::high_resolution_clock::now();
   boost::iostreams::copy(in, out);
   auto t2 = std::chrono::high_resolution_clock::now();
-  return std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+  return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 }
 
 std::tuple<std::uint64_t, std::uint64_t> decompress(

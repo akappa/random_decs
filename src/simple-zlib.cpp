@@ -183,8 +183,8 @@ int main(int argc, char **argv)
 		auto t1 = std::chrono::high_resolution_clock::now();
 		boost::iostreams::copy(in, out);
 		auto t2 = std::chrono::high_resolution_clock::now();
-		auto spent = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
-		std::cout << "Time " << spent.count() << " msecs" << std::endl;
+		auto spent = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+		std::cout << "Time\t" << spent.count() << "\tμs" << std::endl;
 		output_file_size = c_filter.get_count();
 	} else {
 		const size_t max = 1500000000; // 1.5G

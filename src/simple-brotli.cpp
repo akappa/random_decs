@@ -77,8 +77,8 @@ void compress(
   auto t_2 = high_resolution_clock::now();
   auto time_spent = duration_cast<microseconds>(t_2 - t_1).count();
 
-  std::cout << "Time " << time_spent << " μs\n"
-            << "Size " << sizeof(s_size) + encoded_size << std::endl;
+  std::cout << "Time\t" << time_spent << "\tμs\n"
+            << "Size\t" << sizeof(s_size) + encoded_size << "\tbytes" << std::endl;
 
   // Write output on file
   std::ofstream output(outfile, std::ios::binary);
@@ -121,25 +121,71 @@ void decompress(std::string infile, std::string outfile, bool print_stats, bool 
   }
 
   auto time_spent = duration_cast<microseconds>(t_2 - t_1).count();
-  std::cout << "Time " << time_spent << " μs" << std::endl;
+  std::cout << "Time\t"  << time_spent << "\tμs\n"
+            << "Size\t"  << len        << "\tbytes" << std::endl;
   // Write output on file
   std::ofstream output(outfile, std::ios::binary);
   write_file(output, storage.data(), len);
 }
 
+void benchmark(std::string infile, size_t tries)
+{
+  using namespace std::chrono;
+  // Read input
+  std::ifstream input(infile, std::ios::binary);
+  size_t in_len;
+  auto in_data = read_file<byte>(infile.c_str(), &in_len);
+  auto *data = in_data.get();
 
-enum class Operation { COMPRESS, DECOMPRESS };
+  // Figure out uncompressed size
+  auto len   = read<s_size>(data);
+  data      += sizeof(s_size);
+  in_len    -= sizeof(s_size);
+
+  // Alocate output
+  std::vector<byte> storage(len, byte{});
+
+  // Decompress (in-memory)
+  std::vector<std::uint64_t> times(tries, 0UL);
+  size_t dec_len = len;
+  for (auto &i : times) {
+    auto t_1 = high_resolution_clock::now();
+    auto res = BrotliDecompressBuffer(in_len, data, &dec_len, storage.data());
+    auto t_2 = high_resolution_clock::now();
+    if (res != BROTLI_RESULT_SUCCESS) {
+     std::stringstream ss;
+     ss << "Decompression returned error code " << res;
+     throw std::logic_error(ss.str());
+    }
+    if (len != dec_len) {
+      std::stringstream ss;
+
+      ss << "WARNING: len != dec_len (" << len << " != " << dec_len << ")";
+      throw std::logic_error(ss.str());
+    }
+    i          = std::chrono::duration_cast<std::chrono::microseconds>(t_2 - t_1).count();    
+  }
+
+  for (auto i : times) {
+    std::cout << "Time\t" << i << "\tμs" << std::endl;
+  }
+}
+
+enum class Operation { COMPRESS, DECOMPRESS, BENCHMARK };
 
 Operation parse_tool(const char *name) {
   std::string s_name = name,
               dec    = "decompress",
-              enc    = "compress";
+              enc    = "compress",
+              bench = "benchmark";
   if (s_name == dec) {
     return Operation::DECOMPRESS;
   } else if (s_name == enc) {
     return Operation::COMPRESS;
+  } else if (s_name == bench) {
+    return Operation::BENCHMARK;
   }
-  throw std::logic_error("Invalid tool " + s_name + " (must be either " + enc + " or " + dec);
+  throw std::logic_error("Invalid tool " + s_name + " (must be either " + enc + ", " + dec + " or " + bench);
 }
 
 int main(int argc, char **argv)
@@ -149,7 +195,7 @@ int main(int argc, char **argv)
   po::variables_map vm;
 
   if (argc < 1 + 1) {
-    std::cerr << "ERROR: tool needed (either compress or decompress)" << std::endl;
+    std::cerr << "ERROR: tool needed (either compress, decompress or benchmark)" << std::endl;
     return EXIT_FAILURE;
   }
 
@@ -162,11 +208,16 @@ int main(int argc, char **argv)
 
     desc.add_options()
         ("input-file,i", po::value<std::string>()->required(),
-         "Input file.")
-        ("output-file,o", po::value<std::string>()->required(),
-         "Output file.");
+         "Input file.");
     po::positional_options_description pd;
-    pd.add("input-file", 1).add("output-file", 1);
+    pd.add("input-file", 1);
+
+    if (op != Operation::BENCHMARK) {
+        desc.add_options()
+          ("output-file,o", po::value<std::string>()->required(),
+           "Output file.");
+        pd.add("output-file", 1);
+    }
 
     if (op == Operation::COMPRESS) {
       desc.add_options()
@@ -174,23 +225,27 @@ int main(int argc, char **argv)
            "Compression quality.")
           ("window,w", po::value<unsigned int>()->default_value(22),
            "Window parameter.")
-          ("no-dictionary",  "Disables the static dictionary.")
-          ("no-relative",    "Disables relative distances.")
-          ("no-part",        "Disables block partitioning.")
-          ("no-lit-part",    "Disables block partitioning for literals.")
-          ("no-len-part",    "Disables block partitioning for insert-and-copy lengths.")
-          ("no-dist-part",   "Disables block partitioning for distances.")
-          ("no-context",     "Disables context modeling.")
-          ("no-context-lit", "Disables context modeling for literals.")
-          ("no-context-dst", "Disables context modeling for distances.");
+          ("dictionary",  po::value<bool>()->default_value(true), "Enables the static dictionary.")
+          ("relative",    po::value<bool>()->default_value(true), "Enables relative distances.")
+          ("part",        po::value<bool>()->default_value(true), "Enables block partitioning.")
+          ("lit-part",    po::value<bool>()->default_value(true), "Enables block partitioning for literals.")
+          ("len-part",    po::value<bool>()->default_value(true), "Enables block partitioning for insert-and-copy lengths.")
+          ("dist-part",   po::value<bool>()->default_value(true), "Enables block partitioning for distances.")
+          ("context",     po::value<bool>()->default_value(true), "Enables context modeling.")
+          ("context-lit", po::value<bool>()->default_value(true), "Enables context modeling for literals.")
+          ("context-dst", po::value<bool>()->default_value(true), "Enables context modeling for distances.");
 
       pd.add("quality", 1);
     } else if (op == Operation::DECOMPRESS) {
       desc.add_options()
         ("print-stats,p", "Print decompression stats on stderr.")
         ("bench-check,b", "Print CSV-separated benchmark check values.");
+    } else {
+      desc.add_options()
+        ("tries,t", po::value<unsigned int>()->default_value(3),
+          "Number of decompressions");
+      pd.add("tries", 1);
     }
-
 
     try {
       po::store(po::command_line_parser(argc, argv).options(desc).positional(pd).run(), vm);
@@ -201,25 +256,36 @@ int main(int argc, char **argv)
 
     // Collect parameters
     auto infile     = vm["input-file"].as<std::string>();
-    auto outfile    = vm["output-file"].as<std::string>();
 
-    if (op == Operation::COMPRESS) {
-      auto quality        = vm["quality"].as<unsigned int>();
-      auto window         = vm["window"].as<unsigned int>();
-      auto no_dict        = vm.count("no-dictionary") > 0;
-      auto no_rel         = vm.count("no-relative") > 0;
-      auto no_part        = vm.count("no-part") > 0;
-      auto no_lit_part    = no_part or vm.count("no-lit-part")  > 0;
-      auto no_len_part    = no_part or vm.count("no-len-part")  > 0;
-      auto no_dist_part   = no_part or vm.count("no-dist-part") > 0;
-      auto no_context     = vm.count("no-context") > 0;
-      auto no_context_lit = no_context or vm.count("no-context-lit") > 0;
-      auto no_context_dst = no_context or vm.count("no-context-dst") > 0;
-      compress(infile, outfile, quality, window, no_dict, no_rel, no_lit_part, no_len_part, no_dist_part, no_context_lit, no_context_dst);
-    } else {
-      auto print_stats    = vm.count("print-stats") > 0;
-      auto bench_check    = vm.count("bench-check") > 0;
-      decompress(infile, outfile, print_stats, bench_check);
+    switch (op) {
+      case Operation::COMPRESS: {
+        auto outfile    = vm["output-file"].as<std::string>();
+        auto quality        = vm["quality"].as<unsigned int>();
+        auto window         = vm["window"].as<unsigned int>();
+        auto no_dict        = not vm["dictionary"].as<bool>();
+        auto no_rel         = not vm["relative"].as<bool>();
+        auto no_part        = not vm["part"].as<bool>();
+        auto no_lit_part    = no_part or (not vm["lit-part"].as<bool>());
+        auto no_len_part    = no_part or (not vm["len-part"].as<bool>());
+        auto no_dist_part   = no_part or (not vm["dist-part"].as<bool>());
+        auto no_context     = not vm["context"].as<bool>();
+        auto no_context_lit = no_context or (not vm["context-lit"].as<bool>());
+        auto no_context_dst = no_context or (not vm["context-dst"].as<bool>());
+        compress(infile, outfile, quality, window, no_dict, no_rel, no_lit_part, no_len_part, no_dist_part, no_context_lit, no_context_dst);
+        break;
+      }
+      case Operation::DECOMPRESS: {
+        auto outfile        = vm["output-file"].as<std::string>();
+        auto print_stats    = vm["print-stats"].as<bool>();
+        auto bench_check    = vm["bench-check"].as<bool>();
+        decompress(infile, outfile, print_stats, bench_check);
+        break;
+      }
+      default: {
+        assert(op == Operation::BENCHMARK);
+        auto tries = vm["tries"].as<unsigned int>();
+        benchmark(infile, tries);
+      }
     }
   } catch (std::exception &e) {
     std::cerr << e.what() << "\n"

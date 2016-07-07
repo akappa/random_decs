@@ -115,10 +115,10 @@ std::vector<std::uint64_t> benchmark(
   auto content     = read_file<std::uint8_t>(in_name.c_str(), &insize);
   auto content_ptr = content.get();
 
-  // Read uncompressed length
-  auto content_ptr_32 = reinterpret_cast<std::uint64_t*>(content_ptr);
+ // Read uncompressed length
+  auto content_ptr_32 = reinterpret_cast<std::uint32_t*>(content_ptr);
   size_t dec_size     = *content_ptr_32++;
-  content_ptr         = reinterpret_cast<std::uint8_t*>(content_ptr);
+  content_ptr         = reinterpret_cast<std::uint8_t*>(content_ptr_32);
 
   // Allocate output
   std::vector<std::uint8_t> dec_data(dec_size, 0);
@@ -185,19 +185,19 @@ int main(int argc, char **argv)
 
       size_t out_size, time;
       std::tie(out_size, time) = compress(infile, outfile);
-      std::cout << "Size\t" << out_size << "\n"
-                << "Time\t" << time     << std::endl;
+      std::cout << "Size\t" << out_size << "\tbytes\n"
+                << "Time\t" << time     << "\tμs" << std::endl;
     } else if (op == Operation::DECOMPRESS) {
       auto outfile    = vm["output-file"].as<std::string>();
       size_t out_size, time;
       std::tie(out_size, time) = decompress(infile, outfile);
-      std::cout << "Size\t" << out_size << "\n"
-                << "Time\t" << time     << std::endl;
+      std::cout << "Size\t" << out_size << "\tbytes\n"
+                << "Time\t" << time     << "\tμs" << std::endl;
     } else {
       auto tries  = vm["tries"].as<size_t>();
       auto times  = benchmark(infile, tries);
       for (auto i : times) {
-        std::cout << "Time\t" << i << std::endl;
+        std::cout << "Time\t" << i << "\tμs" << std::endl;
       }
     }
   } catch (std::exception &e) {

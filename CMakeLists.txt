@@ -81,13 +81,13 @@ add_custom_target(Binary ALL DEPENDS kzip lzturbo nz)
 
 # Executable
 add_executable(simple-lz4 ${CMAKE_SOURCE_DIR}/simple-lz4.cpp)
-target_link_libraries(simple-lz4 io lz4)
+target_link_libraries(simple-lz4 ${Boost_LIBRARIES} io lz4)
 
 add_executable(simple-lzma ${CMAKE_SOURCE_DIR}/simple-lzma.cpp)
-target_link_libraries(simple-lzma io lzma)
+target_link_libraries(simple-lzma ${Boost_LIBRARIES} io lzma)
 
 add_executable(simple-snappy ${CMAKE_SOURCE_DIR}/simple-snappy.cpp)
-target_link_libraries(simple-snappy ${snappy_LIBRARIES} io)
+target_link_libraries(simple-snappy ${Boost_LIBRARIES} ${snappy_LIBRARIES} io)
 
 add_executable(simple-zlib ${CMAKE_SOURCE_DIR}/simple-zlib.cpp)
 target_link_libraries(simple-zlib ${Boost_LIBRARIES} io)
