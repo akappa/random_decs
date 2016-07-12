@@ -3,7 +3,11 @@
 set -e
 set -o pipefail
 
-./simple-ppmd-parser $@ | (
+root=$(dirname "$0")
+parser="${root}/simple-ppmd-parser"
+compressor="${root}/7za"
+
+${parser} $@ | (
   read cmd
   if [ -z ${cmd} ] ; then
     exit 1
@@ -13,20 +17,23 @@ set -o pipefail
         read outfile
         read order
         read memory
-				rm -f ${outfile}
-        ./7za a ${outfile} ${infile} -y "-m0=PPMd:mem=${memory}m:o=${order}"
+				# That's because 7za is brain-damaged and adds extensions on its own.
+				out_dir=$(mktemp -d)
+        ${compressor} a ${out_dir}/archive ${infile} -y "-m0=PPMd:mem=${memory}m:o=${order}"
+				mv ${out_dir}/archive.7z ${outfile}
+				rmdir ${out_dir}
         ;;
     D)  read infile
         read outfile
         tmp_dir="$(mktemp -d)"
-        ./7za x ${infile} -o${tmp_dir}
+        ${compressor} x ${infile} -o${tmp_dir}
         find "${tmp_dir}" -mindepth 1 -exec mv "{}" ${outfile} \;
         rmdir "${tmp_dir}"
         ;;
     B)  read infile
         read tries
         for i in $(seq 1 ${tries}) ; do
-          ./7za t ${infile} | grep "Time"
+          ${compressor} t ${infile} | grep "Time"
         done
         ;;
   esac
