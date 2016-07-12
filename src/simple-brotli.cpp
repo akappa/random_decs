@@ -238,8 +238,8 @@ int main(int argc, char **argv)
       pd.add("quality", 1);
     } else if (op == Operation::DECOMPRESS) {
       desc.add_options()
-        ("print-stats,p", "Print decompression stats on stderr.")
-        ("bench-check,b", "Print CSV-separated benchmark check values.");
+        ("print-stats,p", po::value<bool>()->default_value(false), "Print decompression stats on stderr.")
+        ("bench-check,b", po::value<bool>()->default_value(false), "Print CSV-separated benchmark check values.");
     } else {
       desc.add_options()
         ("tries,t", po::value<unsigned int>()->default_value(3),

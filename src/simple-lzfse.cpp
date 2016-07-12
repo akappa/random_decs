@@ -40,7 +40,7 @@ std::tuple<std::uint64_t, std::uint64_t> compress(
   auto content_ptr = content.get();
 
   // Allocate output
-  auto out_size    = insize * 1.1;
+  auto out_size    = insize * 1.1 + 200 * (1 << 10);
   std::vector<std::uint8_t> output(out_size + sizeof(std::uint32_t));
   auto out_ptr     = output.data();
   auto out_ptr32   = reinterpret_cast<std::uint32_t*>(out_ptr);

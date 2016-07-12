@@ -43,7 +43,7 @@ std::tuple<measure_t, measure_t> compress(const std::string &in_name, const std:
   std::vector<char> data(file_len);
   read_data(file, data.data(), file_len);
 
-  const size_t max = file_len * 1.1; // 10% more than input
+  const size_t max = file_len * 1.1 + 200 * (1 << 10); // 10% more than input
   std::vector<char> output(max, 0U);
   size_t output_file_size = 0;
 

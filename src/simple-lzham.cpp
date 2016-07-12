@@ -65,7 +65,7 @@ std::tuple<size_t, size_t> compress(
   }
 
   // Write uncompressed size and compression options
-  auto comp_bound  = insize * 1.1 + sizeof(std::uint32_t) * 2;
+  auto comp_bound  = insize * 1.1 + 200 * (1 << 10);
   std::vector<std::uint8_t> out(comp_bound, 0);
   auto out_ptr     = out.data();
   auto out_sptr    = reinterpret_cast<std::uint32_t*>(out_ptr);
