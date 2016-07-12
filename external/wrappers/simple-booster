@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+
+import argparse
+from os import path
+from tempfile import NamedTemporaryFile
+import sys
+from subprocess import run, PIPE
+
+from enum import Enum, unique
+
+boost_compress = path.join(path.dirname(__file__), 'boost_compress')
+boost_decompress = path.join(path.dirname(__file__), 'boost_decompress')
+yes_names = ("yes", "on", "1")
+no_names = ("no", "off", "0")
+
+
+@unique
+class Action(Enum):
+    compress = 1
+    decompress = 2
+    benchmark = 3
+
+
+@unique
+class Algorithms(Enum):
+    Arithmetic = 1
+    Huffman = 5
+    Range = 7
+
+
+def compress(args):
+    input = args.infile
+    out = args.outfile
+    mtf = ''
+    if args.mtf in yes_names:
+        mtf = "-m"
+    algo = Algorithms[args.algo_id].value
+    cmd = '{} -a {} {} {} -o {}'.format(
+        boost_compress, algo, mtf, input, out
+    )
+    proc = run(cmd.split(), stdout=PIPE, stderr=PIPE, check=True)
+    size = path.getsize(out)
+    output = proc.stderr.decode("utf-8")
+    print("\t".join(output.split()))
+    print('Size\t{}\tbytes'.format(size))
+
+
+def decompress(args):
+    input = args.infile
+    out = args.outfile
+    cmd = '{} {} -o {}'.format(boost_decompress, input, out)
+    run(cmd.split(), stdout=sys.stdout, stderr=sys.stdout, check=True)
+
+
+def benchmark(args):
+    tries = int(args.tries)
+    with NamedTemporaryFile(dir='.') as dummy_out:
+        args.outfile = dummy_out.name
+        for i in range(0, tries):
+            decompress(args)
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    # Parse the arguments
+    try:
+        args = argv[1:]
+
+        all_bin_names = yes_names + no_names
+
+        parser = argparse.ArgumentParser(description='Simple booster parser.')
+        parser.add_argument('infile', help='Input filename')
+
+        action = Action[args[0]]
+        args = args[1:]
+        if action == Action.compress:
+            parser.add_argument('outfile', help='Output filename')
+            parser.add_argument('-a', '--algo-id',
+                                default=Algorithms.Range.name,
+                                choices=tuple((x.name for x in Algorithms)),
+                                help='Select the compression strategy'
+                                )
+
+            parser.add_argument('-m', '--mtf',
+                                default='false',
+                                choices=all_bin_names,
+                                help='Enables move-to-front'
+                                )
+        elif action == Action.decompress:
+            parser.add_argument('outfile', help='Output filename')
+        else:
+            parser.add_argument(
+                'tries', help='Number of decompressions',
+                nargs='?', default=10
+            )
+
+        actions = {
+            Action.compress: compress,
+            Action.decompress: decompress,
+            Action.benchmark: benchmark
+        }
+        args = parser.parse_args(args)
+        actions[action](args)
+
+    except IndexError:
+        print('ERROR: Need one action among {}'.format(
+            ', '.join((x.name for x in Action))
+        ))
+
+    except KeyError:
+        message = ('Invalid action {}: it must be'
+                   ' one between {}').format(
+                       args[0],
+                       ", ".join((x.name for x in Action)))
+        print(message, file=sys.stderr)
+
+    except Exception as e:
+        print(e)
+
+if __name__ == '__main__':
+    main()

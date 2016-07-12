@@ -117,4 +117,16 @@ add_custom_command(
   OUTPUT "simple-ppmd"
   COMMAND cp ${PROJECT_SOURCE_DIR}/external/wrappers/simple-ppmd ${PROJECT_BINARY_DIR}
 )
-add_custom_target(simple-ppmd ALL DEPENDS "${PROJECT_BINARY_DIR}/simple-ppmd")
+add_custom_target(ppmd-wrapper ALL DEPENDS "${PROJECT_BINARY_DIR}/simple-ppmd")
+
+add_custom_command(
+  OUTPUT "simple-booster"
+  COMMAND cp ${PROJECT_SOURCE_DIR}/external/wrappers/simple-booster ${PROJECT_BINARY_DIR}
+)
+add_custom_target(booster-wrapper ALL DEPENDS "${PROJECT_BINARY_DIR}/simple-booster")
+
+add_custom_command(
+  OUTPUT "simple-lzopt"
+  COMMAND cp ${PROJECT_SOURCE_DIR}/external/wrappers/simple-lzopt ${PROJECT_BINARY_DIR}
+)
+add_custom_target(lzopt-wrapper ALL DEPENDS "${PROJECT_BINARY_DIR}/simple-lzopt")

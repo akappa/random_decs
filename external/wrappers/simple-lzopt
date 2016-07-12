@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+
+import argparse
+from os import path
+from tempfile import NamedTemporaryFile
+import sys
+from subprocess import run, PIPE
+
+from enum import Enum, unique
+
+compressor = path.join(path.dirname(__file__), 'bc-zip')
+
+
+@unique
+class Action(Enum):
+    compress = 1
+    decompress = 2
+    benchmark = 3
+
+
+@unique
+class Encoder(Enum):
+    TNibble = 'soda09_16'
+    VByteFast = 'hybrid-16'
+
+
+def compress(args):
+    # set_trace()
+    input = args.infile
+    out = args.outfile
+    encoder = Encoder[args.encoder].value
+    bucket = args.bucket
+    cmd = '{} bit-optimal {} {} -e {} -b {}'.format(
+        compressor, input, out, encoder, bucket
+    )
+    proc = run(cmd.split(), stdout=PIPE, stderr=PIPE, check=True)
+    for out_line in proc.stdout.decode("utf-8").splitlines():
+        fields = out_line.split()
+        if len(fields) == 0:
+            continue
+        if fields[0] == 'Compression':
+            compress_time = int(fields[2]) * 10**3
+        elif fields[0] == 'Cost:':
+            compressed_size = int(int(fields[1]) / 8)
+
+    print('Time\t{}\tμs\nSize\t{}\tbytes'.format(
+        compress_time, compressed_size
+    ))
+
+
+def decompress(args, suppressSize=False):
+    # set_trace()
+    input = args.infile
+    out = args.outfile
+    cmd = '{} decompress {} {}'.format(compressor, input, out)
+    proc = run(cmd.split(), stdout=PIPE, stderr=PIPE, check=True)
+    for out_line in proc.stdout.decode("utf-8").splitlines():
+        fields = out_line.split()
+        if len(fields) == 0:
+            continue
+        if fields[0] == 'Decompression':
+            decompress_time = int(fields[2])
+        elif fields[0] == 'Original':
+            decompress_size = int(fields[2])
+    print('Time\t{}\tμs'.format(decompress_time))
+    if not suppressSize:
+        print('Size\t{}\tbytes'.format(decompress_size))
+
+
+def benchmark(args):
+    tries = int(args.tries)
+    with NamedTemporaryFile(dir='.') as dummy_out:
+        args.outfile = dummy_out.name
+        for i in range(0, tries):
+            decompress(args, suppressSize=True)
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    # Parse the arguments
+    try:
+        args = argv[1:]
+
+        # set_trace()
+
+        parser = argparse.ArgumentParser(description='Simple lz-opt parser.')
+        parser.add_argument('infile', help='Input filename')
+
+        action = Action[args[0]]
+        args = args[1:]
+        if action == Action.compress:
+            parser.add_argument('outfile', help='Output filename')
+            parser.add_argument('-e', '--encoder',
+                                default=Encoder.TNibble.name,
+                                choices=tuple((x.name for x in Encoder)),
+                                help='Select the integer encoder'
+                                )
+
+            parser.add_argument('-b', '--bucket',
+                                default=1024,
+                                help='Bucket size (in MB)'
+                                )
+        elif action == Action.decompress:
+            parser.add_argument('outfile', help='Output filename')
+        else:
+            parser.add_argument(
+                'tries', help='Number of decompressions',
+                nargs='?', default=10
+            )
+
+        actions = {
+            Action.compress: compress,
+            Action.decompress: decompress,
+            Action.benchmark: benchmark
+        }
+        args = parser.parse_args(args)
+        actions[action](args)
+
+    except IndexError:
+        print('ERROR: Need one action among {}'.format(
+            ', '.join((x.name for x in Action))
+        ))
+
+    except KeyError:
+        message = ('Invalid action {}: it must be'
+                   ' one between {}').format(
+                       args[0],
+                       ", ".join((x.name for x in Action)))
+        print(message, file=sys.stderr)
+
+    except Exception as e:
+        print(e)
+
+if __name__ == '__main__':
+    main()
