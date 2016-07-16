@@ -1,5 +1,6 @@
 //-- Internal libraries
 #include <io.hpp>
+#include <invalidate_cache.hpp>
 //-- External libraries
 #include <boost/program_options.hpp>
 #include <boost/iostreams/device/array.hpp>
@@ -187,6 +188,7 @@ std::vector<measure_t> benchmark(const std::string &in_name, size_t tries)
     boost::iostreams::copy(in, out);
     auto t2 = std::chrono::high_resolution_clock::now();
     time = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+    wipe_caches();
   }
 
   return times;

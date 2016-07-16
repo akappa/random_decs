@@ -1,4 +1,5 @@
 //-- Internal libraries
+#include <invalidate_cache.hpp>
 #include <io.hpp>
 //-- External libraries
 #include <boost/program_options.hpp>
@@ -185,7 +186,7 @@ std::vector<size_t> benchmark(const std::string &in_name, size_t tries)
     if (status != LZHAM_DECOMP_STATUS_SUCCESS) {
       throw std::logic_error("Decompression failed");
     }
-
+    wipe_caches();
   }
   return timings;
 }

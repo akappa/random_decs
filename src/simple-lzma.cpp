@@ -1,4 +1,5 @@
 //-- Internal libraries
+#include <invalidate_cache.hpp>
 #include <io.hpp>
 //-- External libraries
 #include <boost/program_options.hpp>
@@ -180,6 +181,7 @@ std::vector<measure_t> benchmark(const std::string &in_name, size_t tries)
     }
     assert(dec_pos == out_len);
     time = spent.count();
+    wipe_caches();
   }
   return times;
 }

@@ -1,4 +1,5 @@
 //-- Internal libraries
+#include <invalidate_cache.hpp>
 #include <io.hpp>
 //-- External libraries
 #include <boost/iostreams/device/array.hpp>
@@ -152,6 +153,7 @@ std::vector<std::uint64_t> benchmark(
     i = decompress_buffer(
       content_ptr, insize - sizeof(*content_ptr_64), dec_data.data(), dec_size
     );
+    wipe_caches();
   }
 
   return dec_times;

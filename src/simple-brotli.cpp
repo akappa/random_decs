@@ -1,5 +1,6 @@
 #include <brotli/encode.h>
 #include <brotli/decode.h>
+#include <invalidate_cache.hpp>
 
 #include <boost/program_options.hpp>
 
@@ -152,6 +153,7 @@ void benchmark(std::string infile, size_t tries)
     auto t_1 = high_resolution_clock::now();
     auto res = BrotliDecompressBuffer(in_len, data, &dec_len, storage.data());
     auto t_2 = high_resolution_clock::now();
+    wipe_caches();
     if (res != BROTLI_RESULT_SUCCESS) {
      std::stringstream ss;
      ss << "Decompression returned error code " << res;

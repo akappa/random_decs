@@ -1,38 +1,59 @@
 {
+	"SublimeLinter":
+	{
+		"linters":
+		{
+			"annotations":
+			{
+				"errors":
+				[
+					"FIXME"
+				],
+				"warnings":
+				[
+					"TODO"
+				]
+			},
+			"clang":
+			{
+				"extra_flags": "-std=c++11",
+				"include_dirs":
+				[
+					"${project_folder}/include",
+					"${project_folder}/brotli/include",
+					"${project_folder}/brotli/include/brotli",
+					"${project_folder}/external/zstd/include",
+					"${project_folder}/external/lzham/include",
+					"${project_folder}/external/zopfli/include",
+					"${project_folder}/external/lzfse/include"
+				]
+			}
+		}
+	},
+	"build_systems":
+	[
+		{
+			"file_regex": "^[ ]*File \"(...*?)\", line ([0-9]*)",
+			"name": "Anaconda Python Builder",
+			"selector": "source.python",
+			"shell_cmd": "\"python3\" -u \"$file\""
+		}
+	],
 	"folders":
 	[
 		{
 			"path": "."
 		}
 	],
-	"SublimeLinter":
+	"settings":
 	{
-		"linters":
+		"todoreview":
 		{
-			"clang": {
-				"extra_flags": "-std=c++11",
-				"include_dirs": [
-						"${project_folder}/include",
-						"${project_folder}/brotli/include",
-						"${project_folder}/brotli/include/brotli",
-            "${project_folder}/external/zstd/include",
-            "${project_folder}/external/lzham/include",
-            "${project_folder}/external/zopfli/include",
-            "${project_folder}/external/lzfse/include",
-				]
-			},
-			"annotations": {
-				"warnings": ["TODO"],
-				"errors": ["FIXME"]
-			}
+			"exclude_folders":
+			[
+				"*.git*",
+				"ext_libs*"
+			]
 		}
-	},
-  "settings": {
-    "todoreview": {
-      "exclude_folders": [
-        "*.git*",
-        "ext_libs*"
-      ]
-    }
-  }
+	}
 }

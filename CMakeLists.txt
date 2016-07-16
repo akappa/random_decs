@@ -47,6 +47,7 @@ include_directories(${snappy_INCLUDE_DIRS})
 
 # Libraries
 add_library(io ${LIB_DIR}/io.cpp)
+add_library(cache ${LIB_DIR}/invalidate_cache.cpp)
 
 set_source_files_properties(lz4.c lz4hc.c PROPERTIES COMPILE_FLAGS "-Wall -W -Wundef -Wcast-align -Wno-implicit-function-declaration -Os -march=native -std=c99")
 add_library(lz4lc OBJECT ${LZ4_DIR}/lz4.c)
@@ -81,38 +82,38 @@ add_custom_target(Binary ALL DEPENDS kzip lzturbo nz)
 
 # Executable
 add_executable(simple-lz4 ${CMAKE_SOURCE_DIR}/simple-lz4.cpp)
-target_link_libraries(simple-lz4 ${Boost_LIBRARIES} io lz4)
+target_link_libraries(simple-lz4 ${Boost_LIBRARIES} io lz4 cache)
 
 add_executable(simple-lzma ${CMAKE_SOURCE_DIR}/simple-lzma.cpp)
-target_link_libraries(simple-lzma ${Boost_LIBRARIES} io lzma)
+target_link_libraries(simple-lzma ${Boost_LIBRARIES} io lzma cache)
 
 add_executable(simple-snappy ${CMAKE_SOURCE_DIR}/simple-snappy.cpp)
-target_link_libraries(simple-snappy ${Boost_LIBRARIES} ${snappy_LIBRARIES} io)
+target_link_libraries(simple-snappy ${Boost_LIBRARIES} ${snappy_LIBRARIES} io cache)
 
 add_executable(simple-zlib ${CMAKE_SOURCE_DIR}/simple-zlib.cpp)
-target_link_libraries(simple-zlib ${Boost_LIBRARIES} io)
+target_link_libraries(simple-zlib ${Boost_LIBRARIES} io cache)
 
 add_executable(simple-bzip2 ${CMAKE_SOURCE_DIR}/simple-bzip2.cpp)
-target_link_libraries(simple-bzip2 ${Boost_LIBRARIES} io)
+target_link_libraries(simple-bzip2 ${Boost_LIBRARIES} io cache)
 
 add_executable(simple-brotli ${CMAKE_SOURCE_DIR}/simple-brotli.cpp)
-target_link_libraries(simple-brotli ${Boost_LIBRARIES} ${BROTLI_LIB} io)
+target_link_libraries(simple-brotli ${Boost_LIBRARIES} ${BROTLI_LIB} io cache)
 
 add_executable(simple-zstd ${CMAKE_SOURCE_DIR}/simple-zstd.cpp)
-target_link_libraries(simple-zstd ${Boost_LIBRARIES} libzstd_static io)
+target_link_libraries(simple-zstd ${Boost_LIBRARIES} libzstd_static io cache)
 
 add_executable(simple-lzham ${CMAKE_SOURCE_DIR}/simple-lzham.cpp)
-target_link_libraries(simple-lzham ${Boost_LIBRARIES} lzhamdll io)
+target_link_libraries(simple-lzham ${Boost_LIBRARIES} lzhamdll io cache)
 
 add_executable(simple-zopfli ${CMAKE_SOURCE_DIR}/simple-zopfli.cpp)
-target_link_libraries(simple-zopfli ${Boost_LIBRARIES} zopfli io)
+target_link_libraries(simple-zopfli ${Boost_LIBRARIES} zopfli io cache)
 
 add_executable(simple-lzfse ${CMAKE_SOURCE_DIR}/simple-lzfse.cpp)
-target_link_libraries(simple-lzfse ${Boost_LIBRARIES} lzfse io)
+target_link_libraries(simple-lzfse ${Boost_LIBRARIES} lzfse io cache)
 
 # Binary wrappers
 add_executable(simple-ppmd-parser ${CMAKE_SOURCE_DIR}/simple-ppmd-parser.cpp)
-target_link_libraries(simple-ppmd-parser ${Boost_LIBRARIES})
+target_link_libraries(simple-ppmd-parser ${Boost_LIBRARIES} cache)
 add_custom_command(
   OUTPUT "simple-ppmd"
   COMMAND cp ${PROJECT_SOURCE_DIR}/external/wrappers/simple-ppmd ${PROJECT_BINARY_DIR}

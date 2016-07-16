@@ -1,4 +1,5 @@
 //-- Internal libraries
+#include <invalidate_cache.hpp>
 #include <io.hpp>
 //-- External libraries
 #include <boost/program_options.hpp>
@@ -99,6 +100,7 @@ std::vector<size_t> benchmark(const std::string &in_name, size_t tries)
     auto time_spent  = std::chrono::duration_cast<std::chrono::microseconds>(t_2 - t_1);
     i                = time_spent.count();
     std::fill(dec_file.begin(), dec_file.end(), 0);
+    wipe_caches();
   }
   return timings;
 }

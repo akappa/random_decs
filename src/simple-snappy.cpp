@@ -1,4 +1,5 @@
 //-- Internal libraries
+#include <invalidate_cache.hpp>
 #include <io.hpp>
 //-- External Shipped Libraries
 #include <snappy.h>
@@ -117,7 +118,8 @@ std::vector<measure_t> benchmark(const std::string &in_name, size_t tries)
     if (!ok) {
       throw std::logic_error("Decompression error, exiting");
     }
-    time = spent.count();    
+    time = spent.count();
+    wipe_caches();
   }
 
   return times;
