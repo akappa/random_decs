@@ -1,0 +1,32 @@
+{
+	"folders":
+	[
+		{
+			"path": "."
+		}
+	],
+  "SublimeLinter":
+  {
+    "linters":
+    {
+      "clang": {
+        "extra_flags": "-std=c++11",
+        "include_dirs": [
+            "${project_folder}/include",
+        ]
+      },
+      "annotations": {
+        "warnings": ["TODO"],
+        "errors": ["FIXME"]
+      }
+    }
+  },
+  "settings": {
+    "todoreview": {
+      "exclude_folders": [
+        "*.git*",
+        "ext_libs*"
+      ]
+    }
+  }
+}

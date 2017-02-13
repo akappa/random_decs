@@ -7,7 +7,8 @@
 			{
 				"errors":
 				[
-					"FIXME"
+					"FIXME",
+					"REFACTOR"
 				],
 				"warnings":
 				[
@@ -16,7 +17,7 @@
 			},
 			"clang":
 			{
-				"extra_flags": "-std=c++11",
+				"extra_flags": "-std=c++14",
 				"include_dirs":
 				[
 					"${project_folder}/include",

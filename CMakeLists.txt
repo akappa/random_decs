@@ -12,7 +12,7 @@ set(LZ4_DIR ${PROJECT_SOURCE_DIR}/lz4)
 set(CMAKE_PREFIX_PATH "~/.local/")
 
 # C++11 support, Release by default
-include(Cpp11)
+include(Cpp14)
 include(NinjaColorFix)
 include(ReleaseDefault)
 include(submodules)

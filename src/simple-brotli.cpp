@@ -1,15 +1,18 @@
 #include <brotli/encode.h>
 #include <brotli/decode.h>
+
 #include <invalidate_cache.hpp>
 
 #include <boost/program_options.hpp>
 
 #include <io.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <sstream>
 #include <string>
@@ -30,10 +33,41 @@ std::uint8_t *write(std::uint8_t *data, T val)
 using byte    = std::uint8_t;
 using s_size  = std::uint64_t;
 
+class matcher_option {
+public:
+  virtual void specific_options(boost::program_options::options_description &options) = 0;
+  virtual std::unique_ptr<ext::matcher> instantiate(boost::program_options::variables_map &vm) = 0;
+  virtual std::string option_name() const= 0;
+  virtual ~matcher_option() { }
+};
+
+struct treap_option : public matcher_option{
+
+  treap_option() {}
+
+  void specific_options(boost::program_options::options_description &options) override
+  {
+    options.add_options()(
+      "window,w", boost::program_options::value<unsigned int>()->default_value(22),
+      "Window parameter."
+    );
+  }
+  std::unique_ptr<ext::matcher> instantiate(boost::program_options::variables_map &vm) override
+  {
+    auto window = vm["window"].as<unsigned int>();
+    return std::make_unique<ext::treap>(window);
+  }
+
+  std::string option_name() const override
+  {
+    return "treap";
+  }
+};
+
 void compress(
   std::string infile, std::string outfile, 
-  unsigned int quality, unsigned int window, 
-  bool no_dict, bool no_rel, 
+  unsigned int quality, ext::matcher *matcher,
+  bool no_dict, bool no_rel,
   bool no_lit_part, bool no_len_part, bool no_dist_part, 
   bool no_context_literal, bool no_context_distance
 )
@@ -60,7 +94,7 @@ void compress(
   // Compress (in-memory)
   brotli::BrotliParams bp;
   bp.quality                 = quality;
-  bp.lgwin                   = window;
+  bp.matcher                 = matcher;
   bp.enable_dictionary       = !no_dict;
   bp.enable_relative         = !no_rel;
   bp.enable_lit_part         = !no_lit_part;
@@ -192,9 +226,23 @@ Operation parse_tool(const char *name) {
 
 int main(int argc, char **argv)
 {
+  using std::string;
   namespace po = boost::program_options;
   po::options_description desc;
   po::variables_map vm;
+  treap_option treap;
+  std::vector<matcher_option*> options {{ &treap }};
+  auto get_option = [&options] (const std::string &option_name) -> matcher_option* {
+    auto opt = std::find_if(
+      options.begin(), options.end(),
+      [&option_name] (const matcher_option *i) { return i->option_name() ==  option_name; }
+    );
+    if (opt == options.end()) {
+      throw std::logic_error("invalid parser");
+    }
+    return *opt;
+  };
+
 
   if (argc < 1 + 1) {
     std::cerr << "ERROR: tool needed (either compress, decompress or benchmark)" << std::endl;
@@ -222,11 +270,17 @@ int main(int argc, char **argv)
     }
 
     if (op == Operation::COMPRESS) {
+      std::stringstream ss;
+      ss << "Matchers. Alternatives: ";
+      for (auto &i : options) {
+        ss << i->option_name() << " ";
+      }
+      auto matcher_options = ss.str();
+
       desc.add_options()
           ("quality,q", po::value<unsigned int>()->default_value(11),
            "Compression quality.")
-          ("window,w", po::value<unsigned int>()->default_value(22),
-           "Window parameter.")
+          ("matcher,m",   po::value<string>()->default_value(options.front()->option_name()), matcher_options.c_str())
           ("dictionary",  po::value<bool>()->default_value(true), "Enables the static dictionary.")
           ("relative",    po::value<bool>()->default_value(true), "Enables relative distances.")
           ("part",        po::value<bool>()->default_value(true), "Enables block partitioning.")
@@ -236,7 +290,6 @@ int main(int argc, char **argv)
           ("context",     po::value<bool>()->default_value(true), "Enables context modeling.")
           ("context-lit", po::value<bool>()->default_value(true), "Enables context modeling for literals.")
           ("context-dst", po::value<bool>()->default_value(true), "Enables context modeling for distances.");
-
       pd.add("quality", 1);
     } else if (op == Operation::DECOMPRESS) {
       desc.add_options()
@@ -261,9 +314,8 @@ int main(int argc, char **argv)
 
     switch (op) {
       case Operation::COMPRESS: {
-        auto outfile    = vm["output-file"].as<std::string>();
+        auto outfile        = vm["output-file"].as<string>();
         auto quality        = vm["quality"].as<unsigned int>();
-        auto window         = vm["window"].as<unsigned int>();
         auto no_dict        = not vm["dictionary"].as<bool>();
         auto no_rel         = not vm["relative"].as<bool>();
         auto no_part        = not vm["part"].as<bool>();
@@ -273,7 +325,10 @@ int main(int argc, char **argv)
         auto no_context     = not vm["context"].as<bool>();
         auto no_context_lit = no_context or (not vm["context-lit"].as<bool>());
         auto no_context_dst = no_context or (not vm["context-dst"].as<bool>());
-        compress(infile, outfile, quality, window, no_dict, no_rel, no_lit_part, no_len_part, no_dist_part, no_context_lit, no_context_dst);
+
+        auto matcher = get_option(vm["matcher"].as<string>())->instantiate(vm);
+        
+        compress(infile, outfile, quality, matcher.get(), no_dict, no_rel, no_lit_part, no_len_part, no_dist_part, no_context_lit, no_context_dst);
         break;
       }
       case Operation::DECOMPRESS: {
@@ -290,7 +345,8 @@ int main(int argc, char **argv)
       }
     }
   } catch (std::exception &e) {
-    std::cerr << e.what() << "\n"
+    std::cerr << "ERROR: "
+              << e.what() << ".\n\n"
               << "Command-line options:"  << "\n"
               << desc << std::endl;
     return EXIT_FAILURE;
