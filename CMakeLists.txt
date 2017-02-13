@@ -31,6 +31,10 @@ add_subdirectory(brotli)
 include_directories(brotli/include)
 set(BROTLI_LIB "libbrotli")
 
+# Include treap
+option(TREAP_MATCHER_BUILD_BINARY "Disables treap matcher" OFF)
+add_subdirectory(external/TreapMatcher)
+
 # Include directory
 include_directories("${PROJECT_SOURCE_DIR}/include")
 
