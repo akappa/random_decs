@@ -36,7 +36,7 @@ using s_size  = std::uint64_t;
 class matcher_option {
 public:
   virtual void specific_options(boost::program_options::options_description &options) = 0;
-  virtual std::unique_ptr<ext::matcher> instantiate(boost::program_options::variables_map &vm) = 0;
+  virtual std::unique_ptr<brotli::ext::matcher> instantiate(boost::program_options::variables_map &vm) = 0;
   virtual std::string option_name() const= 0;
   virtual ~matcher_option() { }
 };
@@ -50,9 +50,11 @@ struct treap_option : public matcher_option{
     options.add_options()(
       "window,w", boost::program_options::value<unsigned int>()->default_value(22),
       "Window parameter."
+    )(
+      "enable-static-dictionary", "Enable Brotli's static dictionary."
     );
   }
-  std::unique_ptr<ext::matcher> instantiate(boost::program_options::variables_map &vm) override
+  std::unique_ptr<brotli::ext::matcher> instantiate(boost::program_options::variables_map &vm) override
   {
     auto window = vm["window"].as<unsigned int>();
     return std::make_unique<ext::treap>(window);

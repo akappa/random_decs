@@ -17,3 +17,6 @@
 	path = external/7zip
 	url = https://github.com/farruggia/7zip
 	branch = make_build
+[submodule "TreapMatcher"]
+	path = external/TreapMatcher
+	url = https://github.com/farruggia/brotli_matcher.git

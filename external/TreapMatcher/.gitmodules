@@ -1,3 +1,0 @@
-[submodule "Serialize"]
-	path = external/match_serialize
-	url = https://github.com/farruggia/match_serialize.git
