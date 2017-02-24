@@ -26,7 +26,8 @@
 					"${project_folder}/external/zstd/include",
 					"${project_folder}/external/lzham/include",
 					"${project_folder}/external/zopfli/include",
-					"${project_folder}/external/lzfse/include"
+					"${project_folder}/external/lzfse/include",
+					"${project_folder}/external/TreapMatcher/include"
 				]
 			}
 		}

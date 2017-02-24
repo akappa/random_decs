@@ -34,6 +34,7 @@ set(BROTLI_LIB "libbrotli")
 # Include treap
 option(TREAP_MATCHER_BUILD_BINARY "Disables treap matcher" OFF)
 add_subdirectory(external/TreapMatcher)
+include_directories("${PROJECT_SOURCE_DIR}/external/TreapMatcher/include")
 
 # Include directory
 include_directories("${PROJECT_SOURCE_DIR}/include")
@@ -101,7 +102,7 @@ add_executable(simple-bzip2 ${CMAKE_SOURCE_DIR}/simple-bzip2.cpp)
 target_link_libraries(simple-bzip2 ${Boost_LIBRARIES} io cache)
 
 add_executable(simple-brotli ${CMAKE_SOURCE_DIR}/simple-brotli.cpp)
-target_link_libraries(simple-brotli ${Boost_LIBRARIES} ${BROTLI_LIB} io cache)
+target_link_libraries(simple-brotli ${Boost_LIBRARIES} ${BROTLI_LIB} io cache matcher_libs)
 
 add_executable(simple-zstd ${CMAKE_SOURCE_DIR}/simple-zstd.cpp)
 target_link_libraries(simple-zstd ${Boost_LIBRARIES} libzstd_static io cache)

@@ -5,6 +5,8 @@
 
 #include <boost/program_options.hpp>
 
+#include <matcher/matcher.hpp>
+
 #include <io.hpp>
 
 #include <algorithm>
@@ -57,7 +59,8 @@ struct treap_option : public matcher_option{
   std::unique_ptr<brotli::ext::matcher> instantiate(boost::program_options::variables_map &vm) override
   {
     auto window = vm["window"].as<unsigned int>();
-    return std::make_unique<ext::treap>(window);
+    auto dict   = vm.count("enable-static-dictionary") > 0;
+    return std::make_unique<treap::matcher>(window);
   }
 
   std::string option_name() const override
