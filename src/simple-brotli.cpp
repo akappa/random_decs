@@ -32,7 +32,7 @@ using s_size  = std::uint64_t;
 
 void compress(
   std::string infile, std::string outfile, 
-  unsigned int quality, unsigned int window, 
+  unsigned int quality, unsigned int window, unsigned lgblock,
   bool no_dict, bool no_rel, 
   bool no_lit_part, bool no_len_part, bool no_dist_part, 
   bool no_context_literal, bool no_context_distance
@@ -61,6 +61,7 @@ void compress(
   brotli::BrotliParams bp;
   bp.quality                 = quality;
   bp.lgwin                   = window;
+  bp.lgblock                 = lgblock;
   bp.enable_dictionary       = !no_dict;
   bp.enable_relative         = !no_rel;
   bp.enable_lit_part         = !no_lit_part;
@@ -227,6 +228,8 @@ int main(int argc, char **argv)
            "Compression quality.")
           ("window,w", po::value<unsigned int>()->default_value(22),
            "Window parameter.")
+          ("lgblock,L", po::value<unsigned int>()->default_value(18),
+            "Block parameter.")
           ("dictionary",  po::value<bool>()->default_value(true), "Enables the static dictionary.")
           ("relative",    po::value<bool>()->default_value(true), "Enables relative distances.")
           ("part",        po::value<bool>()->default_value(true), "Enables block partitioning.")
@@ -261,8 +264,9 @@ int main(int argc, char **argv)
 
     switch (op) {
       case Operation::COMPRESS: {
-        auto outfile    = vm["output-file"].as<std::string>();
+        auto outfile        = vm["output-file"].as<std::string>();
         auto quality        = vm["quality"].as<unsigned int>();
+        auto lgblock        = vm["lgblock"].as<unsigned int>();
         auto window         = vm["window"].as<unsigned int>();
         auto no_dict        = not vm["dictionary"].as<bool>();
         auto no_rel         = not vm["relative"].as<bool>();
@@ -273,7 +277,7 @@ int main(int argc, char **argv)
         auto no_context     = not vm["context"].as<bool>();
         auto no_context_lit = no_context or (not vm["context-lit"].as<bool>());
         auto no_context_dst = no_context or (not vm["context-dst"].as<bool>());
-        compress(infile, outfile, quality, window, no_dict, no_rel, no_lit_part, no_len_part, no_dist_part, no_context_lit, no_context_dst);
+        compress(infile, outfile, quality, window, lgblock, no_dict, no_rel, no_lit_part, no_len_part, no_dist_part, no_context_lit, no_context_dst);
         break;
       }
       case Operation::DECOMPRESS: {
